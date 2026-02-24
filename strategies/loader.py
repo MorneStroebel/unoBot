@@ -1,5 +1,6 @@
-from .base_bot import BaseBotStrategy
 from .aggressive_bot import AggressiveBotStrategy
+from .base_bot import BaseBotStrategy
+from .gemini_bot import GeminiBot
 from .smart_bot import SmartBotStrategy
 
 def load_strategy(name="base_bot"):
@@ -23,7 +24,8 @@ def load_strategy(name="base_bot"):
     strategies = {
         "base_bot": BaseBotStrategy,
         "aggressive_bot": AggressiveBotStrategy,
-        "smart_bot": SmartBotStrategy
+        "smart_bot": SmartBotStrategy,
+        "gemini_bot": GeminiBot
     }
     
     if name not in strategies:

@@ -4,6 +4,9 @@ A clean, modular, strategy-driven bot for playing Uno through the official Uno G
 
 ## 🌟 Features
 
+- **🎯 Interactive Startup Menu** - Choose specific players or open rooms
+- **🔄 Auto-Rejoin System** - Automatically rejoin and play continuously
+- **⏳ Smart Room Waiting** - Wait for specific players or available rooms
 - **🔌 Real-time Socket.io Integration** - Instant game state updates
 - **🧠 Multiple AI Strategies** - Easy strategy swapping via config
 - **📊 Comprehensive Statistics** - Track performance, actions, and trends
@@ -17,6 +20,7 @@ A clean, modular, strategy-driven bot for playing Uno through the official Uno G
 ## 📋 Table of Contents
 
 - [Quick Start](#-quick-start)
+- [New Features](#-new-features)
 - [Strategy Swapping](#-strategy-swapping)
 - [Statistics Tracking](#-statistics-tracking)
 - [Architecture](#-architecture)
@@ -58,10 +62,98 @@ A clean, modular, strategy-driven bot for playing Uno through the official Uno G
    python -m app.main
    ```
 
-The bot will:
-- Connect to the Uno Game Engine
-- Join an available room (or create one in sandbox mode)
-- Start playing automatically using the configured strategy
+### Interactive Startup
+
+When you run the bot, you'll see an interactive menu:
+
+```
+============================================================
+🎮 UNOBOT STARTUP - ROOM SELECTION
+============================================================
+
+How would you like to join games?
+
+1. 🎯 Play against specific player(s)
+2. 🌐 Join any available open room
+3. 🔄 Auto-rejoin after games end (recommended)
+
+Enter your choice (1-3):
+```
+
+**Choose your mode:**
+- **Option 1:** Find and play against a specific player by name
+- **Option 2:** Join any available open room immediately  
+- **Option 3:** Continuous play - auto-rejoin after each game ends
+
+**Features:**
+- ⏳ Bot waits for players/rooms to become available
+- 🔄 Auto-rejoins for continuous play sessions
+- 📊 Stats tracked across all games
+- 🛑 Press Ctrl+C anytime for graceful exit
+
+See **[NEW_FEATURES.md](NEW_FEATURES.md)** for complete guide.
+
+---
+
+## 🆕 New Features
+
+### 🎯 Interactive Startup Menu
+
+Choose how you want to play when starting the bot:
+
+1. **Play against specific player** - Enter a player name, bot finds and plays with them
+2. **Join any open room** - Bot joins first available room
+3. **Auto-rejoin mode** - Continuous play, automatically rejoins after each game
+
+### 🔄 Auto-Rejoin System
+
+Bot can automatically rejoin rooms after games end:
+
+```
+🎉 WE WON! Score: 65 points
+
+⏳ Game ended. Preparing to rejoin in 3 seconds...
+
+============================================================
+🔄 REJOINING - Preparing for next game...
+============================================================
+
+✅ Successfully joined room with JohnDoe!
+```
+
+Perfect for:
+- Overnight training sessions
+- Testing strategies over many games
+- Playing continuously with friends
+- Building comprehensive statistics
+
+### ⏳ Smart Room Waiting
+
+Bot intelligently waits for players or rooms:
+
+- **Waiting for specific player:** Checks every 5 seconds until player is available
+- **Waiting for open room:** Finds first WAITING room, creates new if none exist
+- **Progress updates:** Shows waiting status every 30 seconds
+- **Never times out:** Waits as long as needed
+
+Example:
+```
+🔍 Searching for player: Alice...
+⚠️  Player 'Alice' not found or room not available
+⏳ Waiting for player to be available...
+⏳ Still waiting... (attempt 6)
+✅ Successfully joined room with Alice!
+```
+
+### 📊 Enhanced Statistics
+
+All new features are fully integrated with stats tracking:
+- Stats saved after every game
+- Works with auto-rejoin for multi-game sessions
+- Tracks wins, losses, placements, points across all modes
+- Graceful shutdown (Ctrl+C) saves everything
+
+For complete guide, see **[NEW_FEATURES.md](NEW_FEATURES.md)**
 
 ---
 

@@ -33,7 +33,7 @@ _DEFAULTS = {
 
     # Runtime flags
     "is_sandbox_mode":   True,
-    "debug_mode":        True,
+    "debug_mode":        False,
     "only_players_mode": False,
 
     # Strategy

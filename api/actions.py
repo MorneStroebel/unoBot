@@ -1,6 +1,17 @@
 from api.client import get, post
 from core.state import save_state
-from config.settings import BOT_FIRST_NAME, BOT_LAST_NAME, IS_SANDBOX_MODE, MAC_ADDRESS, PLAYER_NAME, ONLY_PLAYERS_MODE
+from config.settings import BOT_FIRST_NAME, BOT_LAST_NAME, IS_SANDBOX_MODE, MAC_ADDRESS, PLAYER_NAME, ONLY_PLAYERS_MODE, ACTIVE_STRATEGY, get_strategy_setting
+
+
+def _bot_first_name() -> str:
+    """Return the bot first name, respecting per-strategy overrides."""
+    return get_strategy_setting(ACTIVE_STRATEGY, "bot_first_name", BOT_FIRST_NAME)
+
+
+def _bot_last_name() -> str:
+    """Return the bot last name, respecting per-strategy overrides."""
+    return get_strategy_setting(ACTIVE_STRATEGY, "bot_last_name", BOT_LAST_NAME)
+
 
 
 # -----------------------------
@@ -33,8 +44,8 @@ def join_room(room_id, only_players=None):
         only_players = ONLY_PLAYERS_MODE
 
     payload = {
-        "firstName": BOT_FIRST_NAME,
-        "lastName": BOT_LAST_NAME,
+        "firstName": _bot_first_name(),
+        "lastName": _bot_last_name(),
         "MAC": MAC_ADDRESS,
         "isSandbox": IS_SANDBOX_MODE,
         "onlyPlayers": only_players
@@ -74,8 +85,8 @@ def find_and_join_room(player_name, only_players=None):
     payload = {
         "playerName": player_name,
         "isSandbox": True,
-        "firstName": BOT_FIRST_NAME,
-        "lastName": BOT_LAST_NAME,
+        "firstName": _bot_first_name(),
+        "lastName": _bot_last_name(),
         "MAC": MAC_ADDRESS,
         "onlyPlayers": only_players
     }

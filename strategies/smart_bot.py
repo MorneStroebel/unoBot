@@ -1,6 +1,8 @@
 import random
 from collections import Counter
-from .base import BaseStrategy
+
+from strategies.base_strategy import BaseStrategy
+
 
 class SmartBotStrategy(BaseStrategy):
     """

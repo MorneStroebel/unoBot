@@ -1,0 +1,13 @@
+{
+  "active_strategy": "smart_bot",
+  "strategies": {
+    "base_bot": {
+      "bot_first_name": "WorldClass",
+      "bot_last_name": "Base"
+    },
+    "smart_bot": {
+      "bot_first_name": "WorldClass",
+      "bot_last_name": "smart"
+    }
+  }
+}

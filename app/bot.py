@@ -21,7 +21,9 @@ from config.settings import (
     ACTIVE_STRATEGY,
     AUTO_REJOIN,
     REJOIN_DELAY,
-    DEBUG_MODE
+    DEBUG_MODE,
+    get_strategy_setting,
+    set_setting,
 )
 
 # -----------------------------
@@ -199,7 +201,10 @@ def start_bot():
                         if new_strategy:
                             strategy = load_strategy(new_strategy)
                             current_strategy_name = new_strategy
-                            print(f"✅ Strategy changed to: {strategy.__class__.__name__}")
+                            set_setting("active_strategy", new_strategy)
+                            bot_first = get_strategy_setting(new_strategy, "bot_first_name")
+                            bot_last  = get_strategy_setting(new_strategy, "bot_last_name")
+                            print(f"✅ Strategy changed to: {strategy.__class__.__name__} ({bot_first} {bot_last})")
 
                     # Continue/change_strategy both lead to rejoin
                     if action in ['continue', 'change_strategy']:

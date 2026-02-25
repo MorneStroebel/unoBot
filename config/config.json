@@ -1,17 +1,17 @@
 {
-  "active_strategy": "grandmaster_bot",
+  "active_strategy": "grand_master",
   "strategies": {
     "base_bot": {
       "bot_first_name": "WorldClass",
-      "bot_last_name": "Base"
+      "bot_last_name": "UnoBot"
     },
-    "grandmaster_bot": {
+    "grand_master": {
       "bot_first_name": "WorldClass",
-      "bot_last_name": "GrandMaster"
+      "bot_last_name": "Grandmaster"
     },
     "smart_bot": {
       "bot_first_name": "WorldClass",
-      "bot_last_name": "smart"
+      "bot_last_name": "UnoBot"
     }
   }
 }

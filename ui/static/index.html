@@ -1,0 +1,882 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UnoBot Control</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0a0b0d;--surface:#111318;--surface2:#181c24;
+  --border:#1f2530;--border2:#2a3040;
+  --text:#e2e8f0;--muted:#64748b;
+  --accent:#e63946;--accent2:#f4a261;
+  --green:#22c55e;--yellow:#eab308;--blue:#3b82f6;--purple:#a855f7;
+  --mono:'Share Tech Mono',monospace;
+  --display:'Bebas Neue',sans-serif;
+  --body:'DM Sans',sans-serif;
+  --r:8px;
+}
+html{background:var(--bg);color:var(--text);font-family:var(--body);font-size:14px}
+body{min-height:100vh;display:flex;flex-direction:column}
+body::before{content:'';position:fixed;inset:0;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.07) 2px,rgba(0,0,0,.07) 4px);pointer-events:none;z-index:9999}
+
+/* header */
+header{display:flex;align-items:center;justify-content:space-between;padding:16px 28px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:100}
+.logo{display:flex;align-items:center;gap:12px}
+.logo-icon{width:34px;height:34px;background:var(--accent);border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:18px;box-shadow:0 0 18px rgba(230,57,70,.35)}
+.logo-text{font-family:var(--display);font-size:26px;letter-spacing:2px}
+.logo-sub{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:3px;margin-top:1px}
+.hdr-right{display:flex;align-items:center;gap:16px}
+.hdr-status{display:flex;align-items:center;gap:7px;font-family:var(--mono);font-size:12px}
+.status-dot{width:8px;height:8px;border-radius:50%;background:var(--muted);transition:background .3s}
+.status-dot.running{background:var(--green);box-shadow:0 0 8px var(--green);animation:blink 2s infinite}
+.status-dot.paused{background:var(--yellow);box-shadow:0 0 8px var(--yellow)}
+.status-dot.stopped{background:var(--accent)}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.4}}
+
+/* layout */
+.main{display:flex;flex:1;min-height:0}
+.sidebar{width:240px;min-width:240px;border-right:1px solid var(--border);padding:20px 0;display:flex;flex-direction:column;gap:2px}
+.nav-label{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;padding:8px 22px 4px}
+.nav-item{display:flex;align-items:center;gap:9px;padding:9px 22px;cursor:pointer;color:var(--muted);font-size:13px;font-weight:500;border-left:3px solid transparent;transition:all .15s;user-select:none}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,.03)}
+.nav-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(230,57,70,.07)}
+.nav-item .icon{font-size:15px;width:18px;text-align:center}
+.content{flex:1;padding:28px;overflow-y:auto}
+.section{display:none}.section.active{display:block}
+
+/* cards */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:22px;margin-bottom:18px}
+.card-title{font-family:var(--display);font-size:18px;letter-spacing:1.5px;color:var(--text)}
+.card-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+
+/* hero */
+.bot-hero{background:var(--surface);border:1px solid var(--border);border-radius:var(--r);padding:32px;margin-bottom:18px;display:flex;align-items:center;gap:32px;position:relative;overflow:hidden}
+.bot-hero::before{content:'';position:absolute;top:-50px;right:-50px;width:200px;height:200px;background:radial-gradient(circle,rgba(230,57,70,.07) 0%,transparent 70%);pointer-events:none}
+.big-ring{width:90px;height:90px;border-radius:50%;border:3px solid var(--border2);display:flex;align-items:center;justify-content:center;font-size:36px;transition:all .4s;flex-shrink:0}
+.big-ring.running{border-color:var(--green);box-shadow:0 0 28px rgba(34,197,94,.2)}
+.big-ring.paused{border-color:var(--yellow);box-shadow:0 0 28px rgba(234,179,8,.2)}
+.big-ring.stopped{border-color:var(--border2)}
+.hero-info{flex:1}
+.info-row{display:flex;align-items:center;gap:10px;margin-bottom:9px;font-size:13px}
+.info-key{font-family:var(--mono);color:var(--muted);font-size:10px;min-width:105px;text-transform:uppercase;letter-spacing:1px}
+.info-val{color:var(--text);font-weight:500}
+.info-val.green{color:var(--green)}.info-val.accent{color:var(--accent)}.info-val.yellow{color:var(--yellow)}
+.hero-actions{display:flex;flex-direction:column;gap:8px;min-width:130px}
+
+/* buttons */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;padding:9px 18px;border:1px solid transparent;border-radius:6px;font-family:var(--mono);font-size:11px;font-weight:600;letter-spacing:1px;text-transform:uppercase;cursor:pointer;transition:all .15s;white-space:nowrap}
+.btn:disabled{opacity:.35;cursor:not-allowed}
+.btn-start{background:var(--green);color:#000;border-color:var(--green)}
+.btn-start:hover:not(:disabled){background:#16a34a;box-shadow:0 0 14px rgba(34,197,94,.3)}
+.btn-stop{background:transparent;color:var(--accent);border-color:var(--accent)}
+.btn-stop:hover:not(:disabled){background:rgba(230,57,70,.1)}
+.btn-pause{background:transparent;color:var(--yellow);border-color:var(--yellow)}
+.btn-pause:hover:not(:disabled){background:rgba(234,179,8,.1)}
+.btn-resume{background:var(--yellow);color:#000;border-color:var(--yellow)}
+.btn-resume:hover:not(:disabled){background:#ca8a04}
+.btn-secondary{background:var(--surface2);color:var(--text);border-color:var(--border2);font-size:11px}
+.btn-secondary:hover:not(:disabled){background:var(--border)}
+.btn-ghost{background:transparent;color:var(--muted);border-color:transparent;font-size:11px}
+.btn-ghost:hover:not(:disabled){color:var(--text);background:rgba(255,255,255,.04)}
+.btn-danger{background:transparent;color:var(--accent);border-color:rgba(230,57,70,.3);font-size:11px}
+.btn-danger:hover:not(:disabled){background:rgba(230,57,70,.1)}
+.btn-sm{padding:5px 12px;font-size:10px}
+.btn-primary{background:var(--accent);color:#fff;border-color:var(--accent)}
+.btn-primary:hover:not(:disabled){background:#c1121f}
+
+/* stats grid */
+.stats-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(145px,1fr));gap:10px}
+.stat-box{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:14px}
+.stat-label{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:5px}
+.stat-value{font-family:var(--display);font-size:28px;line-height:1;color:var(--text)}
+.stat-value.green{color:var(--green)}.stat-value.accent{color:var(--accent)}.stat-value.yellow{color:var(--yellow)}.stat-value.blue{color:var(--blue)}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:3px}
+
+/* strategy cards */
+.strategy-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px}
+.s-card{background:var(--surface2);border:1px solid var(--border);border-radius:var(--r);padding:20px;transition:all .15s;position:relative;overflow:hidden}
+.s-card::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity .2s;background:radial-gradient(ellipse at top left,rgba(230,57,70,.05),transparent 60%)}
+.s-card:hover::before{opacity:1}
+.s-card:hover{border-color:var(--border2)}
+.s-card.active{border-color:var(--accent);background:rgba(230,57,70,.04)}
+.s-card.active::before{opacity:1}
+.s-name{font-family:var(--display);font-size:20px;letter-spacing:1px;margin-bottom:2px}
+.s-class{font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:14px;text-transform:uppercase;letter-spacing:1px}
+.s-stats-row{display:flex;gap:10px;margin-bottom:12px}
+.s-stat{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:5px;padding:8px 10px}
+.s-stat-label{font-size:9px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:1px}
+.s-stat-val{font-family:var(--display);font-size:18px;color:var(--text)}
+.s-stat-val.green{color:var(--green)}.s-stat-val.accent{color:var(--accent)}
+.s-actions{display:flex;gap:7px;margin-top:12px;flex-wrap:wrap}
+.active-badge{display:inline-flex;align-items:center;gap:4px;background:rgba(230,57,70,.15);color:var(--accent);border:1px solid rgba(230,57,70,.3);border-radius:4px;padding:2px 7px;font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1px}
+
+/* placement bars */
+.p-bars{display:flex;gap:5px;align-items:flex-end;height:46px;margin:10px 0}
+.p-bar-w{flex:1;display:flex;flex-direction:column;align-items:center;gap:2px}
+.p-bar{width:100%;background:var(--border);border-radius:3px;min-height:4px;transition:height .5s ease}
+.p-bar.p1{background:var(--yellow)}.p-bar.p2{background:var(--blue)}.p-bar.p3{background:var(--accent2)}.p-bar.p4{background:var(--muted)}
+.p-lbl{font-size:9px;color:var(--muted);font-family:var(--mono)}
+
+/* mode selector */
+.mode-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px}
+.mode-btn{background:var(--surface2);border:1px solid var(--border);border-radius:6px;padding:12px 8px;text-align:center;cursor:pointer;transition:all .15s}
+.mode-btn:hover{border-color:var(--border2)}
+.mode-btn.sel{border-color:var(--accent);background:rgba(230,57,70,.06)}
+.mode-btn .m-icon{font-size:22px;margin-bottom:5px}
+.mode-btn .m-label{font-family:var(--mono);font-size:11px;color:var(--text);text-transform:uppercase;letter-spacing:1px}
+.mode-btn .m-sub{font-size:11px;color:var(--muted);margin-top:2px}
+
+/* form elements */
+select,input[type=text],input[type=number]{background:var(--surface2);border:1px solid var(--border);border-radius:5px;color:var(--text);font-family:var(--mono);font-size:12px;padding:8px 11px;outline:none;transition:border-color .15s;width:100%}
+select:focus,input:focus{border-color:var(--accent)}
+.field{margin-bottom:14px}
+.field-label{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:5px;display:block}
+
+/* toggles */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid var(--border)}
+.toggle-row:last-child{border-bottom:none}
+.toggle-label{font-size:13px;color:var(--text)}
+.toggle-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.toggle{position:relative;width:38px;height:20px;cursor:pointer;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;inset:0;background:var(--border2);border-radius:20px;transition:background .2s}
+.toggle-slider::before{content:'';position:absolute;width:14px;height:14px;background:var(--muted);border-radius:50%;top:3px;left:3px;transition:all .2s}
+.toggle input:checked+.toggle-slider{background:rgba(230,57,70,.25)}
+.toggle input:checked+.toggle-slider::before{transform:translateX(18px);background:var(--accent)}
+
+/* terminal */
+.terminal{background:#080a0c;border:1px solid var(--border);border-radius:var(--r);overflow:hidden}
+.term-header{padding:9px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;background:var(--surface)}
+.term-title{font-family:var(--mono);font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:2px}
+.term-dots{display:flex;gap:5px}
+.t-dot{width:10px;height:10px;border-radius:50%}
+.t-dot.r{background:#ff5f57}.t-dot.y{background:#febc2e}.t-dot.g{background:#28c840}
+.term-body{padding:14px;height:320px;overflow-y:auto;font-family:var(--mono);font-size:12px;line-height:1.7;color:#8fa8b0}
+.term-body::-webkit-scrollbar{width:3px}
+.term-body::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
+.log-line{white-space:pre-wrap;word-break:break-all}
+.log-line.warn{color:var(--yellow)}.log-line.err{color:var(--accent)}.log-line.ok{color:var(--green)}.log-line.dim{color:#3a4a55}
+
+/* modal */
+.modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:500;display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)}
+.modal-overlay.hidden{display:none}
+.modal{background:var(--surface);border:1px solid var(--border2);border-radius:var(--r);padding:28px;width:420px;max-width:94vw;max-height:90vh;overflow-y:auto}
+.modal-title{font-family:var(--display);font-size:22px;letter-spacing:1.5px;margin-bottom:6px}
+.modal-sub{font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:20px}
+.modal-footer{display:flex;gap:8px;justify-content:flex-end;margin-top:20px;padding-top:16px;border-top:1px solid var(--border)}
+
+/* misc */
+.row{display:flex;gap:14px}.col{flex:1}
+.page-title{font-family:var(--display);font-size:26px;letter-spacing:2px;margin-bottom:20px}
+.empty{text-align:center;padding:50px 20px;color:var(--muted);font-family:var(--mono);font-size:12px}
+.empty .e-icon{font-size:36px;margin-bottom:10px}
+.toast-ct{position:fixed;bottom:22px;right:22px;display:flex;flex-direction:column;gap:7px;z-index:9000}
+.toast{background:var(--surface);border:1px solid var(--border2);border-radius:6px;padding:10px 14px;font-family:var(--mono);font-size:12px;animation:slideIn .2s ease;max-width:300px}
+.toast.ok{border-color:var(--green);color:var(--green)}.toast.err{border-color:var(--accent);color:var(--accent)}.toast.warn{border-color:var(--yellow);color:var(--yellow)}
+@keyframes slideIn{from{transform:translateX(16px);opacity:0}to{transform:none;opacity:1}}
+.divider{border:none;border-top:1px solid var(--border);margin:16px 0}
+.badge{display:inline-flex;align-items:center;gap:4px;border-radius:4px;padding:2px 8px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:1px}
+.badge.green{background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.25)}
+.badge.yellow{background:rgba(234,179,8,.12);color:var(--yellow);border:1px solid rgba(234,179,8,.25)}
+.badge.red{background:rgba(230,57,70,.12);color:var(--accent);border:1px solid rgba(230,57,70,.25)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <div class="logo-icon">🃏</div>
+    <div>
+      <div class="logo-text">UNOBOT</div>
+      <div class="logo-sub">Control Dashboard</div>
+    </div>
+  </div>
+  <div class="hdr-right">
+    <div class="hdr-status">
+      <div class="status-dot" id="hdr-dot"></div>
+      <span id="hdr-txt" style="color:var(--muted)">OFFLINE</span>
+      <span id="hdr-uptime" style="margin-left:8px;color:var(--muted);font-size:11px"></span>
+    </div>
+  </div>
+</header>
+
+<div class="main">
+  <nav class="sidebar">
+    <div class="nav-label">Navigation</div>
+    <div class="nav-item active" onclick="go('control',this)"><span class="icon">⚡</span>Bot Control</div>
+    <div class="nav-item" onclick="go('strategies',this)"><span class="icon">🧠</span>Strategies</div>
+    <div class="nav-item" onclick="go('stats',this)"><span class="icon">📊</span>Statistics</div>
+    <div class="nav-item" onclick="go('logs',this)"><span class="icon">📟</span>Live Log</div>
+    <div class="nav-item" onclick="go('config',this)"><span class="icon">⚙️</span>Global Config</div>
+  </nav>
+
+  <main class="content">
+
+    <!-- ══ CONTROL ══════════════════════════════════════════════ -->
+    <div class="section active" id="section-control">
+
+      <div class="bot-hero">
+        <div class="big-ring" id="big-ring">🤖</div>
+        <div class="hero-info">
+          <div class="info-row"><span class="info-key">Status</span><span class="info-val" id="h-status">Stopped</span></div>
+          <div class="info-row"><span class="info-key">Strategy</span><span class="info-val accent" id="h-strategy">—</span></div>
+          <div class="info-row"><span class="info-key">PID</span><span class="info-val" id="h-pid">—</span></div>
+          <div class="info-row"><span class="info-key">Mode</span><span class="info-val" id="h-mode">auto</span></div>
+          <div class="info-row"><span class="info-key">Uptime</span><span class="info-val green" id="h-uptime">—</span></div>
+        </div>
+        <div class="hero-actions">
+          <button class="btn btn-start" id="btn-start" onclick="startBot()">▶ START</button>
+          <button class="btn btn-pause" id="btn-pause" onclick="pauseBot()" disabled>⏸ PAUSE</button>
+          <button class="btn btn-resume" id="btn-resume" onclick="resumeBot()" disabled style="display:none">▶ RESUME</button>
+          <button class="btn btn-stop"  id="btn-stop"  onclick="stopBot()"  disabled>■ STOP</button>
+        </div>
+      </div>
+
+      <!-- pause notice banner -->
+      <div id="pause-banner" style="display:none;background:rgba(234,179,8,.08);border:1px solid rgba(234,179,8,.3);border-radius:var(--r);padding:14px 18px;margin-bottom:18px;display:flex;align-items:center;gap:12px">
+        <span style="font-size:20px">⏸</span>
+        <div>
+          <div style="color:var(--yellow);font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:1px">BOT PAUSED</div>
+          <div style="color:var(--muted);font-size:12px;margin-top:2px">The bot will finish its current game, then wait here until you resume.</div>
+        </div>
+        <button class="btn btn-resume btn-sm" onclick="resumeBot()" style="margin-left:auto">▶ RESUME</button>
+      </div>
+
+      <div class="card">
+        <div class="card-header"><span class="card-title">LAUNCH OPTIONS</span></div>
+        <div style="margin-bottom:16px">
+          <span class="field-label">Room Mode</span>
+          <div class="mode-grid">
+            <div class="mode-btn sel" data-mode="auto" onclick="selMode('auto',this)">
+              <div class="m-icon">🚀</div><div class="m-label">Auto</div><div class="m-sub">Join or create</div>
+            </div>
+            <div class="mode-btn" data-mode="wait" onclick="selMode('wait',this)">
+              <div class="m-icon">⏳</div><div class="m-label">Wait</div><div class="m-sub">Wait for open room</div>
+            </div>
+            <div class="mode-btn" data-mode="target" onclick="selMode('target',this)">
+              <div class="m-icon">🎯</div><div class="m-label">Target</div><div class="m-sub">Find specific players</div>
+            </div>
+          </div>
+        </div>
+        <div class="row">
+          <div class="col">
+            <span class="field-label">Strategy Override</span>
+            <select id="launch-strat"><option value="">— Use active strategy —</option></select>
+          </div>
+          <div class="col" style="display:flex;align-items:flex-end">
+            <button class="btn btn-start" style="width:100%" id="btn-start2" onclick="startBot()">▶ START BOT</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">ACTIVE STRATEGY STATS</span>
+          <span id="active-badge" style="font-family:var(--mono);font-size:11px;color:var(--muted)"></span>
+        </div>
+        <div class="stats-grid" id="active-stats">
+          <div class="empty" style="grid-column:1/-1;padding:24px"><div>No data yet</div></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ══ STRATEGIES ═══════════════════════════════════════════ -->
+    <div class="section" id="section-strategies">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <div class="page-title" style="margin:0">STRATEGIES</div>
+        <button class="btn btn-secondary" onclick="loadStrats()">↺ Refresh</button>
+      </div>
+      <div class="strategy-grid" id="strat-grid">
+        <div class="empty" style="grid-column:1/-1"><div class="e-icon">🧠</div><div>Loading…</div></div>
+      </div>
+    </div>
+
+    <!-- ══ STATS ════════════════════════════════════════════════ -->
+    <div class="section" id="section-stats">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <div class="page-title" style="margin:0">STATISTICS</div>
+        <div style="display:flex;gap:8px">
+          <select id="stats-sel" onchange="loadDetailStats(this.value)" style="width:auto">
+            <option value="">Select strategy…</option>
+          </select>
+          <button class="btn btn-secondary" onclick="loadDetailStats(document.getElementById('stats-sel').value)">↺</button>
+        </div>
+      </div>
+      <div id="stats-content">
+        <div class="empty"><div class="e-icon">📊</div><div>Select a strategy to view stats</div></div>
+      </div>
+    </div>
+
+    <!-- ══ LOGS ════════════════════════════════════════════════ -->
+    <div class="section" id="section-logs">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <div class="page-title" style="margin:0">LIVE LOG</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button class="btn btn-ghost btn-sm" onclick="clearLog()">✕ Clear</button>
+          <label class="toggle"><input type="checkbox" id="autoscroll" checked><span class="toggle-slider"></span></label>
+          <span style="font-family:var(--mono);font-size:11px;color:var(--muted)">Auto-scroll</span>
+          <span id="log-count" style="font-family:var(--mono);font-size:10px;color:var(--muted)"></span>
+        </div>
+      </div>
+      <div class="terminal">
+        <div class="term-header">
+          <div class="term-dots"><div class="t-dot r"></div><div class="t-dot y"></div><div class="t-dot g"></div></div>
+          <div class="term-title">bot output</div>
+          <div></div>
+        </div>
+        <div class="term-body" id="log-body"><div class="log-line dim">Waiting for bot…</div></div>
+      </div>
+    </div>
+
+    <!-- ══ GLOBAL CONFIG ════════════════════════════════════════ -->
+    <div class="section" id="section-config">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+        <div class="page-title" style="margin:0">GLOBAL CONFIG</div>
+        <button class="btn btn-primary" onclick="saveGlobalConfig()">💾 Save</button>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">DEFAULT IDENTITY</span></div>
+        <p style="color:var(--muted);font-size:12px;margin-bottom:16px">These are the fallback values. Each strategy can override them in the Strategies tab.</p>
+        <div class="row">
+          <div class="col field"><span class="field-label">First Name</span><input type="text" id="g-first" placeholder="WorldClass"></div>
+          <div class="col field"><span class="field-label">Last Name</span><input type="text" id="g-last" placeholder="UnoBot"></div>
+        </div>
+        <div class="field"><span class="field-label">Player Name</span><input type="text" id="g-player" placeholder="HoerBoer"></div>
+      </div>
+      <div class="card">
+        <div class="card-header"><span class="card-title">BEHAVIOUR</span></div>
+        <div class="toggle-row"><div><div class="toggle-label">Sandbox Mode</div><div class="toggle-sub">Play against bots only</div></div><label class="toggle"><input type="checkbox" id="g-sandbox"><span class="toggle-slider"></span></label></div>
+        <div class="toggle-row"><div><div class="toggle-label">Auto Rejoin</div><div class="toggle-sub">Rejoin automatically after each game</div></div><label class="toggle"><input type="checkbox" id="g-rejoin"><span class="toggle-slider"></span></label></div>
+        <div class="toggle-row"><div><div class="toggle-label">Only Players Mode</div><div class="toggle-sub">Only join rooms with human players</div></div><label class="toggle"><input type="checkbox" id="g-only"><span class="toggle-slider"></span></label></div>
+        <div class="toggle-row"><div><div class="toggle-label">Auto Join Open Room</div><div class="toggle-sub">Automatically join open rooms</div></div><label class="toggle"><input type="checkbox" id="g-autojoin"><span class="toggle-slider"></span></label></div>
+        <div class="toggle-row"><div><div class="toggle-label">Debug Mode</div><div class="toggle-sub">Verbose log output</div></div><label class="toggle"><input type="checkbox" id="g-debug"><span class="toggle-slider"></span></label></div>
+        <div class="row" style="margin-top:16px">
+          <div class="col field"><span class="field-label">Rejoin Delay (s)</span><input type="number" id="g-delay" min="0" max="60"></div>
+          <div class="col field"><span class="field-label">Room Check Interval (s)</span><input type="number" id="g-check" min="1" max="60"></div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:flex-end">
+        <button class="btn btn-primary" onclick="saveGlobalConfig()">💾 Save All Changes</button>
+      </div>
+    </div>
+
+  </main>
+</div>
+
+<!-- ══ STRATEGY CONFIG MODAL ═════════════════════════════════════ -->
+<div class="modal-overlay hidden" id="cfg-modal">
+  <div class="modal">
+    <div class="modal-title" id="modal-title">Configure Strategy</div>
+    <div class="modal-sub" id="modal-sub"></div>
+    <div class="field"><span class="field-label">Bot First Name</span><input type="text" id="m-first" placeholder="WorldClass"></div>
+    <div class="field"><span class="field-label">Bot Last Name</span><input type="text" id="m-last" placeholder="UnoBot"></div>
+    <div class="field"><span class="field-label">Player Name <span style="color:var(--muted)">(overrides global)</span></span><input type="text" id="m-player" placeholder="Leave blank to use global"></div>
+    <div class="field"><span class="field-label">MAC Address <span style="color:var(--muted)">(overrides global)</span></span><input type="text" id="m-mac" placeholder="Leave blank to use global"></div>
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="saveStratConfig()">💾 Save</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-ct" id="toast-ct"></div>
+
+<script>
+// ── State ────────────────────────────────────────────────────────────────────
+let _status    = {status:'stopped',paused:false,active_strategy:'—',pid:null,uptime_seconds:null};
+let _strats    = [];
+let _logOffset = 0;
+let _mode      = 'auto';
+let _cfgTarget = null;  // strategy id being edited in modal
+
+// ── Nav ──────────────────────────────────────────────────────────────────────
+function go(id, el) {
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.getElementById('section-'+id).classList.add('active');
+  el.classList.add('active');
+  if(id==='strategies') loadStrats();
+  if(id==='stats')      populateStatsSel();
+  if(id==='config')     loadGlobalConfig();
+}
+
+// ── Toast ────────────────────────────────────────────────────────────────────
+function toast(msg, type='ok') {
+  const t = document.createElement('div');
+  t.className = `toast ${type}`;
+  t.textContent = msg;
+  document.getElementById('toast-ct').appendChild(t);
+  setTimeout(()=>t.remove(), 3200);
+}
+
+// ── API ──────────────────────────────────────────────────────────────────────
+async function api(path, opts={}) {
+  const r = await fetch('/api'+path, {headers:{'Content-Type':'application/json'}, ...opts});
+  return r.json();
+}
+
+// ── Status polling ────────────────────────────────────────────────────────────
+async function pollStatus() {
+  try { _status = await api('/status'); applyStatus(); } catch(e){}
+}
+
+function applyStatus() {
+  const s  = _status;
+  const running = s.status === 'running';
+  const paused  = s.paused && running;
+
+  // determine visual state
+  const vizState = paused ? 'paused' : s.status;
+
+  // header
+  const dot = document.getElementById('hdr-dot');
+  dot.className = 'status-dot ' + vizState;
+  const htxt = document.getElementById('hdr-txt');
+  htxt.textContent = paused ? 'PAUSED' : (running ? 'RUNNING' : 'OFFLINE');
+  htxt.style.color = paused ? 'var(--yellow)' : (running ? 'var(--green)' : 'var(--muted)');
+  document.getElementById('hdr-uptime').textContent =
+    (running && s.uptime_seconds != null) ? '⏱ '+fmt(s.uptime_seconds) : '';
+
+  // hero ring
+  const ring = document.getElementById('big-ring');
+  ring.className = 'big-ring ' + vizState;
+  ring.textContent = paused ? '⏸' : (running ? '🤖' : '🔴');
+
+  // info rows
+  const hst = document.getElementById('h-status');
+  hst.textContent = paused ? 'Paused' : (running ? 'Running' : 'Stopped');
+  hst.className = 'info-val ' + (paused ? 'yellow' : (running ? 'green' : ''));
+  document.getElementById('h-strategy').textContent = s.active_strategy || '—';
+  document.getElementById('h-pid').textContent = s.pid || '—';
+  document.getElementById('h-uptime').textContent =
+    (running && s.uptime_seconds != null) ? fmt(s.uptime_seconds) : '—';
+
+  // buttons
+  document.getElementById('btn-start').disabled  = running;
+  document.getElementById('btn-start2').disabled = running;
+  document.getElementById('btn-stop').disabled   = !running;
+  document.getElementById('btn-pause').disabled  = !running || paused;
+  document.getElementById('btn-resume').style.display = paused ? 'flex' : 'none';
+  document.getElementById('btn-pause').style.display  = (running && !paused) ? 'flex' : 'none';
+
+  // pause banner
+  const banner = document.getElementById('pause-banner');
+  banner.style.display = paused ? 'flex' : 'none';
+
+  // active stats
+  if(s.active_strategy && s.active_strategy !== '—') {
+    document.getElementById('active-badge').textContent = s.active_strategy;
+    loadActiveStats(s.active_strategy);
+  }
+}
+
+function fmt(sec) {
+  const h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=sec%60;
+  return [h,m,s].map(x=>String(x).padStart(2,'0')).join(':');
+}
+
+// ── Active stats ──────────────────────────────────────────────────────────────
+async function loadActiveStats(id) {
+  try {
+    const s = await api(`/strategies/${id}/stats`);
+    const el = document.getElementById('active-stats');
+    if(!s || s.games_played===0) {
+      el.innerHTML = `<div class="empty" style="grid-column:1/-1;padding:22px"><div>No games played yet</div></div>`;
+      return;
+    }
+    el.innerHTML = [
+      sb('GAMES', s.games_played),
+      sb('WIN RATE', s.win_rate.toFixed(1)+'%', s.win_rate>=50?'green':'accent'),
+      sb('WINS', s.wins, 'green'),
+      sb('LOSSES', s.losses, 'accent'),
+      sb('AVG PTS', s.avg_points_per_game.toFixed(1), 'yellow'),
+      sb('BEST', s.best_game_points),
+      sb('PLAYED', s.total_cards_played, 'blue'),
+      sb('DRAWN', s.total_cards_drawn),
+    ].join('');
+  } catch(e){}
+}
+
+function sb(label, val, cls='') {
+  return `<div class="stat-box"><div class="stat-label">${label}</div><div class="stat-value ${cls}">${val}</div></div>`;
+}
+
+// ── Bot control ───────────────────────────────────────────────────────────────
+function selMode(mode, el) {
+  _mode = mode;
+  document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('sel'));
+  el.classList.add('sel');
+  document.getElementById('h-mode').textContent = mode;
+}
+
+async function startBot() {
+  const strategy = document.getElementById('launch-strat').value || null;
+  try {
+    const r = await api('/bot/start', {method:'POST', body:JSON.stringify({mode:_mode, strategy})});
+    if(r.ok) { toast('✅ Bot started'); setTimeout(pollStatus, 600); }
+    else toast('❌ '+r.error, 'err');
+  } catch(e){ toast('❌ Server unreachable','err'); }
+}
+
+async function stopBot() {
+  try {
+    const r = await api('/bot/stop', {method:'POST'});
+    if(r.ok) { toast('⏹ Bot stopped'); setTimeout(pollStatus, 600); }
+    else toast('❌ '+r.error, 'err');
+  } catch(e){ toast('❌ Server unreachable','err'); }
+}
+
+async function pauseBot() {
+  try {
+    const r = await api('/bot/pause', {method:'POST'});
+    if(r.ok) { toast('⏸ Bot will pause after this game','warn'); setTimeout(pollStatus, 400); }
+    else toast('❌ '+r.error, 'err');
+  } catch(e){ toast('❌ Server unreachable','err'); }
+}
+
+async function resumeBot() {
+  try {
+    const r = await api('/bot/resume', {method:'POST'});
+    if(r.ok) { toast('▶ Bot resumed'); setTimeout(pollStatus, 400); }
+    else toast('❌ '+r.error, 'err');
+  } catch(e){ toast('❌ Server unreachable','err'); }
+}
+
+// ── Strategies ────────────────────────────────────────────────────────────────
+async function loadStrats() {
+  document.getElementById('strat-grid').innerHTML =
+    `<div class="empty" style="grid-column:1/-1"><div class="e-icon">⏳</div><div>Loading…</div></div>`;
+  try {
+    _strats = await api('/strategies');
+    renderStrats();
+    populateLaunchSel();
+    populateStatsSel();
+  } catch(e) {
+    document.getElementById('strat-grid').innerHTML =
+      `<div class="empty" style="grid-column:1/-1"><div>Could not load strategies</div></div>`;
+  }
+}
+
+function fmtId(id){ return id.replace(/_/g,' ').replace(/\b\w/g,c=>c.toUpperCase()); }
+
+function renderStrats() {
+  const grid = document.getElementById('strat-grid');
+  if(!_strats.length) {
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1"><div class="e-icon">🧠</div><div>No strategies found</div></div>`;
+    return;
+  }
+  grid.innerHTML = _strats.map(s => {
+    const st = s.stats;
+    const total = Math.max(1, st.placements['1']+st.placements['2']+st.placements['3']+st.placements['4+']);
+    const bars = [
+      {k:'1',cls:'p1',l:'1st'},{k:'2',cls:'p2',l:'2nd'},
+      {k:'3',cls:'p3',l:'3rd'},{k:'4+',cls:'p4',l:'4th+'}
+    ].map(p=>{
+      const h = Math.max(4, Math.round((st.placements[p.k]/total)*44));
+      return `<div class="p-bar-w"><div class="p-bar ${p.cls}" style="height:${h}px"></div><div class="p-lbl">${p.l}</div></div>`;
+    }).join('');
+
+    const wr = st.win_rate.toFixed(1);
+    const wrCls = st.win_rate>=50 ? 'green' : (st.win_rate>0 ? '' : 'accent');
+
+    // per-strategy config display
+    const sc = s.config || {};
+    const cfgHint = (sc.bot_first_name || sc.bot_last_name)
+      ? `${sc.bot_first_name||''} ${sc.bot_last_name||''}`.trim()
+      : 'Using global defaults';
+
+    return `<div class="s-card ${s.active?'active':''}" id="sc-${s.id}">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:4px">
+        <div>
+          <div class="s-name">${fmtId(s.id)}</div>
+          <div class="s-class">${s.name}</div>
+        </div>
+        ${s.active ? '<div class="active-badge">● Active</div>' : ''}
+      </div>
+
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:12px;display:flex;align-items:center;gap:6px">
+        <span>🏷</span><span id="cfg-hint-${s.id}">${cfgHint}</span>
+      </div>
+
+      <div class="s-stats-row">
+        <div class="s-stat"><div class="s-stat-label">Win Rate</div><div class="s-stat-val ${wrCls}">${wr}%</div></div>
+        <div class="s-stat"><div class="s-stat-label">Games</div><div class="s-stat-val">${st.games_played}</div></div>
+        <div class="s-stat"><div class="s-stat-label">Avg Pts</div><div class="s-stat-val">${st.avg_points_per_game.toFixed(0)}</div></div>
+      </div>
+
+      ${st.games_played>0
+        ? `<div class="p-bars">${bars}</div>`
+        : `<div style="height:46px;display:flex;align-items:center"><span style="font-family:var(--mono);font-size:11px;color:var(--muted)">No games played yet</span></div>`
+      }
+
+      <div class="s-actions">
+        ${s.active
+          ? '<button class="btn btn-ghost btn-sm" disabled>● Active</button>'
+          : `<button class="btn btn-secondary btn-sm" onclick="activateStrat('${s.id}')">▶ Set Active</button>`
+        }
+        <button class="btn btn-secondary btn-sm" onclick="openCfgModal('${s.id}')">⚙ Config</button>
+        <button class="btn btn-ghost btn-sm" onclick="viewStats('${s.id}')">📊 Stats</button>
+        <button class="btn btn-danger btn-sm" onclick="resetStats('${s.id}')">🗑</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function activateStrat(id) {
+  const r = await api(`/strategies/${id}/activate`, {method:'POST'});
+  if(r.ok) { toast(`✅ Active: ${id}`); loadStrats(); pollStatus(); }
+  else toast('❌ '+r.error, 'err');
+}
+
+async function resetStats(id) {
+  if(!confirm(`Reset stats for "${id}"?`)) return;
+  const r = await api(`/strategies/${id}/stats/reset`, {method:'POST'});
+  if(r.ok) { toast('🗑 Stats reset'); loadStrats(); }
+  else toast('❌ Failed','err');
+}
+
+function viewStats(id) {
+  go('stats', document.querySelector('[onclick*="stats"]'));
+  document.getElementById('stats-sel').value = id;
+  loadDetailStats(id);
+}
+
+function populateLaunchSel() {
+  const sel = document.getElementById('launch-strat');
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">— Use active strategy —</option>` +
+    _strats.map(s=>`<option value="${s.id}">${fmtId(s.id)}</option>`).join('');
+  if(cur) sel.value = cur;
+}
+
+function populateStatsSel() {
+  const sel = document.getElementById('stats-sel');
+  const cur = sel.value;
+  if(!_strats.length) return;
+  sel.innerHTML = `<option value="">Select strategy…</option>` +
+    _strats.map(s=>`<option value="${s.id}">${fmtId(s.id)}</option>`).join('');
+  if(cur) sel.value = cur;
+}
+
+// ── Strategy config modal ─────────────────────────────────────────────────────
+function openCfgModal(id) {
+  _cfgTarget = id;
+  const s = _strats.find(x=>x.id===id);
+  document.getElementById('modal-title').textContent = `Configure — ${fmtId(id)}`;
+  document.getElementById('modal-sub').textContent = s ? s.name : id;
+  const c = (s && s.config) || {};
+  document.getElementById('m-first').value  = c.bot_first_name || '';
+  document.getElementById('m-last').value   = c.bot_last_name  || '';
+  document.getElementById('m-player').value = c.player_name    || '';
+  document.getElementById('m-mac').value    = c.mac_address    || '';
+  document.getElementById('cfg-modal').classList.remove('hidden');
+}
+
+function closeModal() {
+  document.getElementById('cfg-modal').classList.add('hidden');
+  _cfgTarget = null;
+}
+
+async function saveStratConfig() {
+  if(!_cfgTarget) return;
+  const data = {
+    bot_first_name: document.getElementById('m-first').value.trim(),
+    bot_last_name:  document.getElementById('m-last').value.trim(),
+    player_name:    document.getElementById('m-player').value.trim(),
+    mac_address:    document.getElementById('m-mac').value.trim(),
+  };
+  // Remove blanks so global fallback applies
+  Object.keys(data).forEach(k => { if(!data[k]) delete data[k]; });
+  const r = await api(`/strategies/${_cfgTarget}/config`, {method:'PATCH', body:JSON.stringify(data)});
+  if(r.ok) {
+    toast(`✅ Config saved for ${_cfgTarget}`);
+    closeModal();
+    loadStrats();
+  } else toast('❌ Save failed','err');
+}
+
+// close modal on overlay click
+document.getElementById('cfg-modal').addEventListener('click', e => {
+  if(e.target === document.getElementById('cfg-modal')) closeModal();
+});
+
+// ── Detailed stats ────────────────────────────────────────────────────────────
+async function loadDetailStats(id) {
+  const el = document.getElementById('stats-content');
+  if(!id) {
+    el.innerHTML = `<div class="empty"><div class="e-icon">📊</div><div>Select a strategy</div></div>`;
+    return;
+  }
+  try {
+    const s = await api(`/strategies/${id}/stats`);
+    el.innerHTML = renderDetailStats(id, s);
+  } catch(e) { el.innerHTML = `<div class="empty"><div>Could not load stats</div></div>`; }
+}
+
+function renderDetailStats(id, s) {
+  const wr = s.win_rate.toFixed(1);
+  const total = Math.max(1, s.placements['1']+s.placements['2']+s.placements['3']+s.placements['4+']);
+  const placRows = [
+    {k:'1',l:'🥇 1st',c:'var(--yellow)'},{k:'2',l:'🥈 2nd',c:'var(--blue)'},
+    {k:'3',l:'🥉 3rd',c:'var(--accent2)'},{k:'4+',l:'4th+',c:'var(--muted)'}
+  ].map(p=>{
+    const cnt = s.placements[p.k], pct = ((cnt/total)*100).toFixed(0);
+    return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px">
+      <div style="font-size:13px;min-width:100px">${p.l}</div>
+      <div style="flex:1;background:var(--border);border-radius:3px;height:7px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${p.c};border-radius:3px;transition:width .5s"></div>
+      </div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--muted);min-width:60px">${cnt} (${pct}%)</div>
+    </div>`;
+  }).join('');
+
+  const cardTypes = Object.entries(s.card_type_counts||{}).sort(([,a],[,b])=>b-a)
+    .map(([t,c])=>`<div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border);font-family:var(--mono);font-size:12px">
+      <span style="color:var(--muted)">${t}</span><span>${c}</span></div>`).join('')
+    || '<div style="color:var(--muted);font-family:var(--mono);font-size:12px">No data yet</div>';
+
+  const colors = s.wild_color_choices||{};
+  const cTotal = Math.max(1, Object.values(colors).reduce((a,b)=>a+b,0));
+  const cMap = {RED:'var(--accent)',BLUE:'var(--blue)',GREEN:'var(--green)',YELLOW:'var(--yellow)'};
+  const colorBars = Object.entries(colors).map(([col,cnt])=>{
+    const pct=((cnt/cTotal)*100).toFixed(0);
+    return `<div style="margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;margin-bottom:3px">
+        <span style="color:${cMap[col]}">${col}</span>
+        <span style="color:var(--muted)">${cnt} (${pct}%)</span>
+      </div>
+      <div style="background:var(--border);border-radius:3px;height:5px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${cMap[col]};border-radius:3px;transition:width .5s"></div>
+      </div></div>`;
+  }).join('');
+
+  return `
+    <div class="card">
+      <div class="card-header">
+        <span class="card-title">${fmtId(id)}</span>
+        <button class="btn btn-danger btn-sm" onclick="resetStats('${id}')">🗑 Reset Stats</button>
+      </div>
+      <div class="stats-grid">
+        ${sb('GAMES', s.games_played)}
+        ${sb('WIN RATE', wr+'%', s.win_rate>=50?'green':'accent')}
+        ${sb('WINS', s.wins, 'green')}
+        ${sb('LOSSES', s.losses, 'accent')}
+        ${sb('TOTAL PTS', s.total_points)}
+        ${sb('AVG PTS', s.avg_points_per_game.toFixed(1), 'yellow')}
+        ${sb('BEST', s.best_game_points)}
+        ${sb('DRAW RATE', ((s.total_cards_drawn/Math.max(1,s.total_cards_played))*100).toFixed(0)+'%')}
+      </div>
+    </div>
+    <div class="row">
+      <div class="col">
+        <div class="card">
+          <div class="card-header"><span class="card-title">PLACEMENTS</span></div>
+          ${placRows}
+        </div>
+      </div>
+      <div class="col">
+        <div class="card">
+          <div class="card-header"><span class="card-title">WILD COLORS</span></div>
+          ${colorBars || '<div style="color:var(--muted);font-size:12px;font-family:var(--mono)">No data</div>'}
+          <hr class="divider">
+          <div style="font-family:var(--display);font-size:16px;letter-spacing:1px;margin-bottom:10px">ACTIONS</div>
+          ${[['Cards Played',s.total_cards_played,''],['Cards Drawn',s.total_cards_drawn,''],
+             ['UNO Calls',s.total_uno_calls,''],['Penalties',s.total_penalties,'var(--accent)']].map(([l,v,c])=>
+            `<div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:12px;padding:5px 0;border-bottom:1px solid var(--border)">
+              <span style="color:var(--muted)">${l}</span>
+              <span${c?` style="color:${c}"`:''}>${v}</span></div>`).join('')}
+        </div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-header"><span class="card-title">CARD TYPE BREAKDOWN</span></div>
+      ${cardTypes}
+    </div>
+    ${s.last_updated ? `<div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-align:right;margin-top:-10px">Last update: ${s.last_updated.substring(0,19)}</div>` : ''}
+  `;
+}
+
+// ── Log ──────────────────────────────────────────────────────────────────────
+function logClass(line) {
+  if(line.match(/❌|error|Error/)) return 'err';
+  if(line.match(/⚠️|warn/)) return 'warn';
+  if(line.match(/✅|🏆|🎉|WIN/)) return 'ok';
+  return '';
+}
+
+async function pollLog() {
+  try {
+    const r = await api(`/bot/log?since=${_logOffset}`);
+    if(r.lines && r.lines.length) {
+      const body = document.getElementById('log-body');
+      if(_logOffset===0 && body.querySelector('.dim')) body.innerHTML='';
+      r.lines.forEach(line=>{
+        const d = document.createElement('div');
+        d.className = 'log-line '+logClass(line);
+        d.textContent = line;
+        body.appendChild(d);
+      });
+      _logOffset = r.total;
+      document.getElementById('log-count').textContent = r.total+' lines';
+      if(document.getElementById('autoscroll').checked) body.scrollTop = body.scrollHeight;
+    }
+  } catch(e){}
+}
+
+function clearLog() {
+  document.getElementById('log-body').innerHTML = '<div class="log-line dim">Log cleared</div>';
+  _logOffset = 0;
+}
+
+// ── Global Config ─────────────────────────────────────────────────────────────
+async function loadGlobalConfig() {
+  try {
+    const c = await api('/config');
+    document.getElementById('g-first').value   = c.bot_first_name || '';
+    document.getElementById('g-last').value    = c.bot_last_name  || '';
+    document.getElementById('g-player').value  = c.player_name    || '';
+    document.getElementById('g-sandbox').checked  = !!c.is_sandbox_mode;
+    document.getElementById('g-rejoin').checked   = !!c.auto_rejoin;
+    document.getElementById('g-only').checked     = !!c.only_players_mode;
+    document.getElementById('g-autojoin').checked = !!c.auto_join_open_room;
+    document.getElementById('g-debug').checked    = !!c.debug_mode;
+    document.getElementById('g-delay').value   = c.rejoin_delay ?? 3;
+    document.getElementById('g-check').value   = c.room_check_interval ?? 5;
+  } catch(e){ toast('Could not load config','err'); }
+}
+
+async function saveGlobalConfig() {
+  const data = {
+    bot_first_name:      document.getElementById('g-first').value,
+    bot_last_name:       document.getElementById('g-last').value,
+    player_name:         document.getElementById('g-player').value,
+    is_sandbox_mode:     document.getElementById('g-sandbox').checked,
+    auto_rejoin:         document.getElementById('g-rejoin').checked,
+    only_players_mode:   document.getElementById('g-only').checked,
+    auto_join_open_room: document.getElementById('g-autojoin').checked,
+    debug_mode:          document.getElementById('g-debug').checked,
+    rejoin_delay:        parseInt(document.getElementById('g-delay').value),
+    room_check_interval: parseInt(document.getElementById('g-check').value),
+  };
+  try {
+    const r = await api('/config', {method:'PATCH', body:JSON.stringify(data)});
+    if(r.ok) toast('✅ Config saved');
+    else toast('❌ Save failed','err');
+  } catch(e){ toast('❌ Server unreachable','err'); }
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+async function init() {
+  await pollStatus();
+  await loadStrats();
+  setInterval(pollStatus, 3000);
+  setInterval(pollLog, 1500);
+}
+init();
+</script>
+</body>
+</html>

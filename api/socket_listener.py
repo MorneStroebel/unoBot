@@ -156,8 +156,13 @@ class SocketListener:
             reason = data.get("reason", "unknown")
             players = data.get("players", [])
 
-            winner_id = winner.get("id")
-            winner_name = winner.get("name", "Unknown")
+            # "winner" may arrive as a plain string ID or as a dict
+            if isinstance(winner, dict):
+                winner_id   = winner.get("id")
+                winner_name = winner.get("name", "Unknown")
+            else:
+                winner_id   = winner          # it's already the ID string
+                winner_name = str(winner)
             won = winner_id == self.player_id
 
             # Determine placement

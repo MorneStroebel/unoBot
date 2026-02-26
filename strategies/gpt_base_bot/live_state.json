@@ -1,0 +1,1 @@
+{"active": false, "strategy_name": null, "room_id": null, "player_id": null, "started_at": null, "cards_played": 40, "cards_drawn": 8, "uno_calls": 7, "penalties": 0, "turns": 48, "current_hand_size": 0, "card_type_counts": {"NUMBER": 30, "DRAW_TWO": 2, "WILD_DRAW_FOUR": 3, "WILD": 1, "REVERSE": 3, "SKIP": 1}, "wild_color_choices": {"RED": 0, "BLUE": 1, "GREEN": 0, "YELLOW": 2}}

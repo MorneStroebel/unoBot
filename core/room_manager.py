@@ -117,18 +117,43 @@ class RoomManager:
             return None, None
 
     # -------------------------------------------------
+    # CREATE NEW ROOM (auto grind mode — always fresh)
+    # -------------------------------------------------
+    def create_and_join_room(self, only_players=False):
+        """Always create a brand-new room. Never joins an existing one."""
+        from api.client import post as api_post
+        from config.settings import IS_SANDBOX_MODE
+        try:
+            resp = api_post("/rooms", {"isSandbox": IS_SANDBOX_MODE})
+            room_id = resp.json().get("roomId")
+            if not room_id:
+                raise ValueError("Server did not return a roomId")
+            player_id = join_room(room_id, only_players=only_players)
+            if not player_id:
+                raise ValueError("Could not join the created room")
+            self._set_current_room(room_id, player_id)
+            print(f"🏠 Created new room: {room_id}", flush=True)
+            return room_id, player_id
+        except Exception as e:
+            print(f"❌ Failed to create room: {e}", flush=True)
+            return None, None
+
+    # -------------------------------------------------
     # REJOIN
     # -------------------------------------------------
-    def rejoin_room(self, delay=3):
-        print(f"⏳ Rejoining in {delay}s...")
+    def rejoin_room(self, delay=3, force_create=False):
+        print(f"⏳ Rejoining in {delay}s...", flush=True)
         time.sleep(delay)
 
-        if self.current_room_id and self.current_player_id:
-            if is_player_in_room(self.current_room_id, self.current_player_id):
-                print("✅ Still in room")
-                return self.current_room_id, self.current_player_id
+        # Clear old room state — the previous game is over
+        self.current_room_id = None
+        self.current_player_id = None
 
-        print("🔄 Finding new room")
+        if force_create:
+            print("🏠 Auto Grind — creating a new room", flush=True)
+            return self.create_and_join_room(only_players=self.only_players)
+
+        print("🔄 Finding a new WAITING room", flush=True)
         return self.join_or_create_room(
             target_players=TARGET_PLAYERS,
             only_players=self.only_players

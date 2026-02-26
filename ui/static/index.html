@@ -255,6 +255,61 @@ select option{background:var(--surf2)}
 .pvp-option.sel{border-color:var(--yellow);background:rgba(240,180,41,.06)}
 .pvp-option-title{font-weight:600;font-size:13px;margin-bottom:3px}
 .pvp-option-desc{font-size:12px;color:var(--muted);line-height:1.5}
+
+    /* ── Strategy Guide Modal ─────────────────────────── */
+    .guide-tab {
+      padding: 8px 16px;
+      font-family: var(--mono);
+      font-size: 11px;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: color .15s, border-color .15s;
+    }
+    .guide-tab:hover { color: var(--fg); }
+    .guide-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+    .guide-panel { display: block; }
+    .guide-panel.hidden { display: none; }
+    .guide-section {
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      margin: 18px 0 6px;
+    }
+    .guide-code {
+      background: var(--surf2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      line-height: 1.65;
+      color: var(--fg);
+      white-space: pre;
+      overflow-x: auto;
+      margin: 0;
+    }
+    .guide-p {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin: 0 0 4px;
+    }
+    .ic {
+      font-family: var(--mono);
+      font-size: 11px;
+      background: var(--surf2);
+      border: 1px solid var(--border);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--blue);
+    }
 </style>
 </head>
 <body>
@@ -371,7 +426,13 @@ select option{background:var(--surf2)}
           <div class="play-card-icon">🚀</div>
           <div class="play-card-title">Auto Grind</div>
           <div class="play-card-desc">Creates a new room each time. Bot keeps playing game after game automatically until you press Stop.</div>
-          <div class="play-card-badge badge-green">♾ Continuous</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <div class="play-card-badge badge-green">♾ Continuous</div>
+            <div class="play-card-badge" id="auto-sandbox-badge" style="display:none;background:rgba(230,57,70,.12);color:var(--red);border:1px solid rgba(230,57,70,.3)">⚠ Sandbox only</div>
+          </div>
+          <div id="auto-sandbox-warn" style="display:none;font-family:var(--mono);font-size:10px;color:var(--red);line-height:1.5">
+            Creating rooms requires Sandbox Mode. Enable it in Bot Identity settings.
+          </div>
           <button class="btn btn-green play-card-btn" id="btn-auto" onclick="startMode('auto')">▶ Start Grinding</button>
         </div>
 
@@ -473,6 +534,7 @@ select option{background:var(--surf2)}
         <div class="page-title" style="margin:0">STRATEGIES</div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-ghost btn-sm" onclick="loadStrats()">↺ Refresh</button>
+          <button class="btn btn-ghost btn-sm" onclick="openModal('modal-guide')">📖 Dev Guide</button>
           <button class="btn btn-blue btn-sm" onclick="openUploadModal()">📦 Upload Strategy</button>
         </div>
       </div>
@@ -707,6 +769,356 @@ select option{background:var(--surf2)}
   </div>
 </div>
 
+<!-- ══ MODAL: Strategy Dev Guide ════════════════════ -->
+<div class="overlay hidden" id="modal-guide">
+  <div class="modal" style="width:760px;max-height:88vh;overflow-y:auto">
+    <div class="modal-title">📖 Strategy Developer Guide</div>
+    <div class="modal-sub">Everything you need to build a custom UNO strategy</div>
+
+    <!-- Tab bar -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin:16px 0 20px">
+      <button class="guide-tab active" id="gtab-structure"  onclick="switchGuideTab('structure')">File Structure</button>
+      <button class="guide-tab"        id="gtab-api"        onclick="switchGuideTab('api')">BaseStrategy API</button>
+      <button class="guide-tab"        id="gtab-events"     onclick="switchGuideTab('events')">Game Events</button>
+      <button class="guide-tab"        id="gtab-cards"      onclick="switchGuideTab('cards')">Card Types</button>
+      <button class="guide-tab"        id="gtab-prompt"     onclick="switchGuideTab('prompt')">🤖 AI Prompt</button>
+    </div>
+
+    <!-- TAB: File Structure -->
+    <div class="guide-panel" id="gpanel-structure">
+      <p class="guide-p">Each strategy lives in its own folder inside <code class="ic">strategies/</code>. The bot discovers strategies automatically — no registration needed.</p>
+
+      <div class="guide-section">Required files</div>
+      <pre class="guide-code">strategies/
+└── my_strategy/
+    ├── __init__.py      ← exports your class
+    ├── strategy.py      ← your strategy logic
+    └── stats.json       ← auto-created by the bot</pre>
+
+      <div class="guide-section">__init__.py</div>
+      <pre class="guide-code">from .strategy import MyStrategy</pre>
+
+      <div class="guide-section">strategy.py skeleton</div>
+      <pre class="guide-code">from strategies.base_strategy import BaseStrategy
+from typing import Optional, Tuple, List, Dict, Any
+
+class MyStrategy(BaseStrategy):
+    """One-line description of your strategy."""
+
+    def __init__(self):
+        super().__init__()
+        # Add any per-instance state here
+
+    # ── Required ──────────────────────────────────────
+    def choose_card(
+        self,
+        hand: List[Dict[str, Any]],
+        top_card: Dict[str, Any],
+        current_color: str,
+    ) -> Tuple[Optional[int], Optional[str]]:
+        """
+        Return (card_index, wild_color) or (None, None) to draw.
+
+        hand          — list of your cards (see Card Format below)
+        top_card      — the current top of the discard pile
+        current_color — active color (may differ after a Wild)
+        """
+        playable = self.get_playable_cards(hand, top_card, current_color)
+        if not playable:
+            return None, None           # draw a card
+
+        idx, card = playable[0]
+        wild_color = self.pick_wild_color(hand) if "WILD" in card["type"] else None
+        return idx, wild_color
+
+    # ── Optional lifecycle hooks ───────────────────────
+    def on_game_start(self):
+        super().on_game_start()         # resets session counters
+        # Reset any per-game state here
+
+    def on_game_end(self, won: bool, placement: int, points: int):
+        super().on_game_end(won, placement, points)  # saves stats!</pre>
+
+      <div class="guide-section">Deploy</div>
+      <p class="guide-p">Zip the folder and upload via <strong>Upload Strategy</strong> — the bot restarts with it available immediately. No code changes to the bot required.</p>
+    </div>
+
+    <!-- TAB: BaseStrategy API -->
+    <div class="guide-panel hidden" id="gpanel-api">
+      <div class="guide-section">Playability helpers</div>
+      <pre class="guide-code">self.is_playable(card, top_card, current_color) → bool
+self.get_playable_cards(hand, top_card, current_color) → [(index, card), ...]
+self.pick_wild_color(hand) → "RED" | "BLUE" | "GREEN" | "YELLOW"
+self.cards_by_type(hand, "SKIP") → [(index, card), ...]
+self.count_color(hand, "RED") → int</pre>
+
+      <div class="guide-section">Session stat recording (call in choose_card)</div>
+      <pre class="guide-code">self._record_play(card, wild_color=None)   # call when you play
+self._record_draw()                         # call when you draw</pre>
+
+      <div class="guide-section">Lifecycle hooks</div>
+      <pre class="guide-code">def on_game_start(self)
+    # called once per game — always call super().on_game_start()
+
+def on_game_end(self, won: bool, placement: int, points: int)
+    # called when game ends — always call super().on_game_end(...)
+    # super() calls _persist_stats() which saves to stats.json
+
+def on_turn_start(self, hand, top_card, current_color)
+    # optional — called before choose_card every turn</pre>
+
+      <div class="guide-section">Reading stats from inside your strategy</div>
+      <pre class="guide-code">from strategies.stats import StrategyStats
+s = StrategyStats("my_strategy")
+s.games_played     # int
+s.win_rate         # float (0–100)
+s.wins / s.losses  # int
+s.avg_points_per_game  # float
+s.placements       # {"1": n, "2": n, "3": n, "4+": n}</pre>
+
+      <div class="guide-section">Persisting custom data (e.g. learned weights)</div>
+      <pre class="guide-code">import json, os
+_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def _load():
+    path = os.path.join(_DIR, "weights.json")
+    if os.path.exists(path):
+        return json.load(open(path))
+    return {"aggression": 0.5}
+
+def _save(data):
+    json.dump(data, open(os.path.join(_DIR, "weights.json"), "w"), indent=2)</pre>
+    </div>
+
+    <!-- TAB: Game Events -->
+    <div class="guide-panel hidden" id="gpanel-events">
+      <p class="guide-p">The bot handles all Socket.io events for you. Your strategy only needs <code class="ic">choose_card()</code>. These are the events the server emits:</p>
+
+      <div class="guide-section">turn (public) — fires on every state change</div>
+      <pre class="guide-code">{
+  roomId:       "uuid",
+  playerId:     "uuid",        // whose turn it is
+  playerName:   "Bot 1",
+  topCard:      { color: "RED", type: "NUMBER", value: 5 },
+  currentColor: "RED",         // active color after wilds
+  unoCalled:    false,
+  history:      [ {color, type, value}, ... ],
+  players:      [ { id, name, cardCount, score }, ... ]
+}</pre>
+
+      <div class="guide-section">turn (private) — only sent to the player whose turn it is</div>
+      <pre class="guide-code">{
+  ...publicTurnData,
+  hand: [ { color: "RED", type: "NUMBER", value: 5 }, ... ]
+}</pre>
+
+      <div class="guide-section">action — card played or drawn</div>
+      <pre class="guide-code">{
+  type:     "play" | "draw" | "uno" | "penalty",
+  playerId: "uuid",
+  card:     { color, type, value },   // card involved (if any)
+  result: {
+    success:            true,
+    penalty:            boolean,
+    penaltyTitle:       "string",     // only if penalty
+    penaltyDescription: "string"      // only if penalty
+  },
+  gameState: { ... }
+}</pre>
+
+      <div class="guide-section">gameStart</div>
+      <pre class="guide-code">{ players: [ { id, name, cardCount, score }, ... ] }</pre>
+
+      <div class="guide-section">gameEnd</div>
+      <pre class="guide-code">{
+  winner: { id: "uuid", name: "Winner Name" },
+  score:  50,           // points from opponents' hands
+  reason: "played_out"
+}</pre>
+
+      <div class="guide-section">countdownStart / countdownCancel</div>
+      <pre class="guide-code">countdownStart: { seconds: 10, message: "Game starting in..." }
+countdownCancel: { reason: "Not enough players" }</pre>
+
+      <div class="guide-section">REST API actions available</div>
+      <pre class="guide-code">play_card(room_id, player_id, card_index, wild_color=None)
+draw_card(room_id, player_id)
+pass_turn(room_id, player_id)     # only after drawing an unplayable card
+call_uno(room_id, player_id)      # call before playing 2nd-to-last card
+catchout(room_id, challenger_id, target_id)  # challenge missed UNO</pre>
+    </div>
+
+    <!-- TAB: Card Types -->
+    <div class="guide-panel hidden" id="gpanel-cards">
+      <p class="guide-p">Every card in <code class="ic">hand</code>, <code class="ic">top_card</code>, or <code class="ic">history</code> follows this structure:</p>
+
+      <div class="guide-section">Card object</div>
+      <pre class="guide-code">{ color: Color, type: CardType, value?: number }</pre>
+
+      <div class="guide-section">Color values</div>
+      <pre class="guide-code">type Color = "RED" | "BLUE" | "GREEN" | "YELLOW" | "WILD"</pre>
+
+      <div class="guide-section">Card type values</div>
+      <pre class="guide-code">type CardType =
+  | "NUMBER"         // value: 0–9
+  | "SKIP"           // skip next player
+  | "REVERSE"        // reverse play order
+  | "DRAW_TWO"       // next player draws 2 and loses turn
+  | "WILD"           // choose any color
+  | "WILD_DRAW_FOUR" // choose color + next player draws 4</pre>
+
+      <div class="guide-section">Examples</div>
+      <pre class="guide-code">{ color: "RED",  type: "NUMBER",         value: 7 }
+{ color: "BLUE", type: "SKIP"                     }
+{ color: "WILD", type: "WILD"                     }
+{ color: "WILD", type: "WILD_DRAW_FOUR"           }</pre>
+
+      <div class="guide-section">Point values (used in scoring)</div>
+      <pre class="guide-code">NUMBER cards     →  face value (0–9)
+SKIP             →  20 pts
+REVERSE          →  20 pts
+DRAW_TWO         →  20 pts
+WILD             →  50 pts
+WILD_DRAW_FOUR   →  50 pts</pre>
+
+      <div class="guide-section">Rate limiting</div>
+      <pre class="guide-code">Max 60 actions / minute (1 per second average) per MAC address.
+Header: X-MAC-Address: 00:11:22:33:44:55
+The bot sends this automatically from config.</pre>
+
+      <div class="guide-section">Key rules</div>
+      <pre class="guide-code">• You can only play a card if:
+    card.color == currentColor, OR
+    card.type  == top_card.type (for action cards), OR
+    card.value == top_card.value (for NUMBER cards), OR
+    card.type.startsWith("WILD")
+
+• After drawing: if drawn card is not playable, call pass_turn()
+• Call UNO before playing your 2nd-to-last card (when hand.length == 2)
+• Catchout a player who has 1 card and did not call UNO</pre>
+    </div>
+
+    <!-- TAB: AI Prompt -->
+    <div class="guide-panel hidden" id="gpanel-prompt">
+      <p class="guide-p">Copy this prompt into Claude, ChatGPT, or any AI assistant. It includes the full API context so the AI generates a working, uploadable strategy with no extra setup.</p>
+
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+        <button class="btn btn-blue btn-sm" onclick="copyPrompt()">📋 Copy Prompt</button>
+      </div>
+
+      <pre class="guide-code" id="ai-prompt-text" style="max-height:520px;overflow-y:auto;user-select:text;font-size:11px">Create a Python UNO bot strategy for me. Here is all the context you need:
+
+━━━ PROJECT STRUCTURE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+strategies/
+└── my_strategy/
+    ├── __init__.py      ← from .strategy import MyStrategy
+    ├── strategy.py      ← your code goes here
+    └── stats.json       ← auto-created, do not create manually
+
+━━━ BASE CLASS (strategies/base_strategy.py) ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+from strategies.base_strategy import BaseStrategy
+from typing import Optional, Tuple, List, Dict, Any
+
+class MyStrategy(BaseStrategy):
+
+    def __init__(self):
+        super().__init__()
+
+    # REQUIRED — return (card_index, wild_color) or (None, None) to draw
+    def choose_card(self, hand, top_card, current_color):
+        ...
+
+    # OPTIONAL lifecycle hooks — always call super()
+    def on_game_start(self):
+        super().on_game_start()
+
+    def on_game_end(self, won, placement, points):
+        super().on_game_end(won, placement, points)  # saves stats to disk
+
+━━━ BUILT-IN HELPERS (all inherited from BaseStrategy) ━━━━━━━━━━━━━━━━━
+
+self.get_playable_cards(hand, top_card, current_color) → [(idx, card), ...]
+self.is_playable(card, top_card, current_color) → bool
+self.pick_wild_color(hand) → "RED"|"BLUE"|"GREEN"|"YELLOW"  (picks most common)
+self.cards_by_type(hand, "SKIP") → [(idx, card), ...]
+self.count_color(hand, "RED") → int
+
+# Call these in choose_card for automatic stats tracking:
+self._record_play(card, wild_color=None)
+self._record_draw()
+
+# Read lifetime stats from inside your strategy:
+from strategies.stats import StrategyStats
+s = StrategyStats("my_strategy")
+print(s.win_rate, s.games_played, s.placements)
+
+━━━ CARD FORMAT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Every card is a dict:
+  { "color": Color, "type": CardType, "value": int (NUMBER only) }
+
+Color = "RED" | "BLUE" | "GREEN" | "YELLOW" | "WILD"
+CardType = "NUMBER" | "SKIP" | "REVERSE" | "DRAW_TWO" | "WILD" | "WILD_DRAW_FOUR"
+
+A card is playable if:
+  card["color"] == currentColor, OR
+  card["type"]  == top_card["type"] (for non-NUMBER), OR
+  card["value"] == top_card["value"] (for NUMBER), OR
+  card["type"].startswith("WILD")
+
+Point values: NUMBER=face value, SKIP/REVERSE/DRAW_TWO=20, WILD/WILD_DRAW_FOUR=50
+
+━━━ GAME FLOW ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. on_game_start() is called once
+2. choose_card() is called every time it is YOUR turn
+3. Return (card_index, wild_color) to play, or (None, None) to draw
+4. After drawing: if drawn card not playable, pass_turn() is called automatically
+5. Call UNO is handled automatically when hand size == 2
+6. on_game_end(won, placement, points) is called once at the end
+   - won: True if you won
+   - placement: 1=first, 2=second, etc.
+   - points: points scored from opponents' remaining cards
+
+━━━ RULES REMINDER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- 60 actions/minute rate limit (bot handles this automatically)
+- call_uno() fires automatically when you have 2 cards and play one
+- You can only draw once per turn; then you must play or pass
+- WILD/WILD_DRAW_FOUR: always return a wild_color string, never None
+
+━━━ DELIVERABLE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Produce two files ready for upload:
+
+FILE 1 — strategies/my_strategy/__init__.py:
+(single import line)
+
+FILE 2 — strategies/my_strategy/strategy.py:
+(full strategy class — no external dependencies beyond stdlib + base_strategy)
+
+The files must be zipped as:  my_strategy.zip  containing the folder my_strategy/
+Upload the zip via the UnoBot UI → Strategies → Upload Strategy.
+
+━━━ STRATEGY REQUEST ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[DESCRIBE YOUR STRATEGY HERE — e.g.:
+  "Build an aggressive bot that prioritizes DRAW_TWO and WILD_DRAW_FOUR,
+   saves WILD cards for when it has 3 or fewer cards left, and tracks
+   opponents' card counts to decide when to play defensively."]</pre>
+
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:10px">
+        Edit the last section then copy. The AI will return two ready-to-upload files.
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-guide')">Close</button>
+    </div>
+  </div>
+</div>
+
 <!-- ══ MODAL: Strategy config ════════════════════════ -->
 <div class="overlay hidden" id="modal-strat-cfg">
   <div class="modal" style="width:520px">
@@ -811,7 +1223,7 @@ select option{background:var(--surf2)}
 // ═══════════════════════════════════════════════════
 // State
 // ═══════════════════════════════════════════════════
-let _status   = {status:'stopped',paused:false,active_strategy:'—',pid:null,uptime_seconds:null,room_id:null};
+let _status   = {status:'stopped',paused:false,active_strategy:'—',pid:null,uptime_seconds:null,room_id:null,is_sandbox_mode:false};
 let _strats   = [];
 let _launchMode = 'auto';
 let _targets  = [];
@@ -930,6 +1342,18 @@ function renderStatus() {
   // Play cards — disable all three when bot is running
   setPlayBtnsDisabled(running);
   if (!running) { _activeMode = null; highlightPlayCard(null); }
+
+  // Auto Grind requires sandbox mode — must be explicitly true
+  const sandbox = s.is_sandbox_mode === true;
+  const autoBtn  = document.getElementById('btn-auto');
+  const autoBadge = document.getElementById('auto-sandbox-badge');
+  const autoWarn  = document.getElementById('auto-sandbox-warn');
+  if (!running) {
+    autoBtn.disabled = !sandbox;
+    autoBadge.style.display = sandbox ? 'none' : '';
+    autoWarn.style.display  = sandbox ? 'none' : '';
+    document.getElementById('pc-auto').style.opacity = sandbox ? '' : '0.55';
+  }
   const pb = document.getElementById('btn-pause');
   const rb = document.getElementById('btn-resume');
   pb.disabled = !running || paused;
@@ -978,6 +1402,11 @@ function setPlayBtnsDisabled(disabled) {
 }
 
 async function startMode(mode) {
+  // Auto Grind requires sandbox mode
+  if (mode === 'auto' && _status.is_sandbox_mode !== true) {
+    toast('⚠ Auto Grind requires Sandbox Mode. Enable it in Bot Identity → Behaviour.', 'warn');
+    return;
+  }
   const strategy = document.getElementById('launch-strat').value || null;
   try {
     const autoRejoin = (mode !== 'pvp');
@@ -1036,7 +1465,7 @@ async function startPvp() {
       _activeMode = 'pvp';
       highlightPlayCard('pvp');
       setPlayBtnsDisabled(true);
-      toast('🎯 Searching for ' + name + ''s room…', 'info');
+      toast('🎯 Searching for ' + name + `'s room…`, 'info');
       setTimeout(pollStatus, 500);
     } catch(e) { toast('❌ ' + e.message, 'err'); }
 
@@ -1150,7 +1579,7 @@ async function rejoinAfterLeave(mode) {
     closeModal('modal-left-room');
     try {
       await api('/room/join', {method:'POST', body:JSON.stringify({mode:'target', target_players:[name]})});
-      toast('✅ Joined player\'s room');
+      toast("✅ Joined player's room");
       setTimeout(pollStatus, 600);
     } catch(e) { toast('❌ ' + e.message, 'err'); }
   } else {
@@ -1592,8 +2021,12 @@ function parseLine(line) {
   if (/✅ Played/.test(body)) {
     return {type:'mine', icon:'✅', main:`Played <strong>${body.replace('✅ Played ','').trim()}</strong>`, ts};
   }
-  if (/🃏 Drew \d/.test(body) && !body.includes('drew')) {
-    return {type:'mine', icon:'🃏', main:`<strong>${body.replace(/^.*🃏\s*/,'')}</strong>`, ts};
+  if (/🤖 Played/.test(body)) {
+    return {type:'mine', icon:'✅', main:`Played <strong>${body.replace(/^.*🤖 Played:\s*/,'').trim()}</strong>`, ts};
+  }
+  // "🃏 Drew N card(s)" — mine. Must check before opponent draw ("🃏 X drew")
+  if (/🃏 Drew/.test(body) && !/drew/.test(body)) {
+    return {type:'mine', icon:'🃏', main:`<strong>${body.replace(/^.*🃏\s*/,'').trim()}</strong>`, ts};
   }
   if (/📣 Called UNO!/.test(body)) {
     return {type:'mine', icon:'📣', main:`<strong>Called UNO!</strong>`, ts};
@@ -1827,13 +2260,37 @@ document.querySelectorAll('.overlay').forEach(o => {
 // ═══════════════════════════════════════════════════
 // Init
 // ═══════════════════════════════════════════════════
+function switchGuideTab(tab) {
+  ['structure','api','events','cards','prompt'].forEach(t => {
+    document.getElementById('gtab-' + t).classList.toggle('active', t === tab);
+    document.getElementById('gpanel-' + t).classList.toggle('hidden', t !== tab);
+  });
+}
+
+function copyPrompt() {
+  const txt = document.getElementById('ai-prompt-text').textContent;
+  navigator.clipboard.writeText(txt).then(
+    () => toast('📋 Prompt copied to clipboard'),
+    () => {
+      // Fallback: select text
+      const el = document.getElementById('ai-prompt-text');
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      toast('⌨ Text selected — press Ctrl+C to copy', 'info');
+    }
+  );
+}
+
 async function init() {
   await pollStatus();
   await loadStrats();
   setInterval(pollStatus,    3000);
   setInterval(pollLog,       1500);
   setInterval(pollLiveStats, 1500);
-  pollLiveStats();  // immediate first call
+  pollLiveStats();
 }
 init();
 </script>

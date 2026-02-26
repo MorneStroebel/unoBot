@@ -1,5 +1,5 @@
 {
-  "active_strategy": "adaptive_bot",
+  "active_strategy": "my_strategy",
   "strategies": {
     "adaptive_bot": {
       "bot_first_name": "Test",
@@ -7,5 +7,11 @@
     }
   },
   "bot_first_name": "Global",
-  "bot_last_name": "Default"
+  "bot_last_name": "Default",
+  "is_sandbox_mode": true,
+  "auto_rejoin": true,
+  "only_players_mode": false,
+  "debug_mode": false,
+  "rejoin_delay": 3,
+  "room_check_interval": 5
 }

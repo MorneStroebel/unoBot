@@ -123,6 +123,7 @@ def api_status():
         "paused":          _is_paused(),
         "uptime_seconds":  uptime,
         "active_strategy": cfg.get("active_strategy", "—"),
+        "is_sandbox_mode": cfg.get("is_sandbox_mode", True),
         "pid":             _bot_process.pid if _bot_process else None,
         "room_id":         room.get("room_id"),
         "player_id":       room.get("player_id"),

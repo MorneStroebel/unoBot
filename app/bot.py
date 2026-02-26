@@ -184,8 +184,8 @@ def start_bot():
                         only_players=only_players
                     )
 
-                else:  # auto / quick
-                    room_id, player_id = room_manager.join_or_create_room(
+                else:  # auto — always create a fresh room
+                    room_id, player_id = room_manager.create_and_join_room(
                         only_players=only_players
                     )
 
@@ -195,7 +195,10 @@ def start_bot():
                 if should_exit:
                     break
                 if auto_rejoin:
-                    room_id, player_id = room_manager.rejoin_room(delay=rejoin_delay)
+                    # auto mode always creates a new room; other modes find existing ones
+                    room_id, player_id = room_manager.rejoin_room(
+                        delay=rejoin_delay, force_create=(mode == "auto")
+                    )
                 elif _UI_MODE:
                     # In UI mode without auto-rejoin, stop after one game
                     print("🏁 Auto-rejoin disabled — stopping after game.", flush=True)

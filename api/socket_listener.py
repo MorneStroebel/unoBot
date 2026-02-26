@@ -147,8 +147,19 @@ class SocketListener:
                 print(f"[DEBUG] gameStart: {data}", flush=True)
             players = data.get("players", [])
             names   = [p.get("name", p.get("playerName", "?")) for p in players]
+            # Populate player name map
+            for p in players:
+                pid = p.get("id")
+                pname = p.get("name") or p.get("playerName")
+                if pid and pname:
+                    self._players[pid] = pname
             print(f"🃏 GAME STARTED  │  Players: {', '.join(names)}", flush=True)
             self._ensure_game_started()
+            # Notify strategy
+            try:
+                self.strategy.on_game_start()
+            except Exception:
+                pass
 
         @self.sio.on("countdownStart")
         def on_countdown_start(data):
@@ -198,6 +209,12 @@ class SocketListener:
             self._ensure_game_started()
             if self.stats_tracker:
                 self.stats_tracker.end_game(won, placement, score if won else 0)
+
+            # Notify strategy
+            try:
+                self.strategy.on_game_end(won, placement, score if won else 0)
+            except Exception:
+                pass
 
             self.game_started = False
             self.game_ended   = True

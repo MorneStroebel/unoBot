@@ -1,20 +1,17 @@
 """
 generate_config.py — Config generator for UnoBot.
 
-Scans the strategies/ folder using the same loader logic the bot uses,
-then writes (or updates) config/config.json with a block for every
-discovered strategy.
+Scans the strategies/ folder for sub-folders (each is a strategy package),
+then writes (or updates) config/config.json with a block for every discovered
+strategy.
 
 Usage:
     python generate_config.py
-
-Options:
-    --dry-run     Print the generated JSON without writing to disk.
-    --overwrite   Replace the entire config.json (default: merge / preserve
-                  existing values like bot names you've already set).
+    python generate_config.py --dry-run
+    python generate_config.py --overwrite
 
 What it does:
-  1. Discovers every strategy in strategies/ (same as the loader).
+  1. Discovers every strategy folder in strategies/ (must contain __init__.py).
   2. Loads the existing config.json if present.
   3. Adds any missing strategy blocks under "strategies".
   4. Preserves any values you've already customised.
@@ -26,29 +23,19 @@ import json
 import os
 import sys
 
-# ---------------------------------------------------------------------------
-# Allow running from the project root: python generate_config.py
-# ---------------------------------------------------------------------------
 PROJECT_ROOT = os.path.dirname(os.path.abspath(__file__))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
-from strategies.loader import list_strategies  # noqa: E402  (after sys.path fix)
+from strategies.loader import list_strategies  # noqa: E402
 
 CONFIG_PATH = os.path.join(PROJECT_ROOT, "config", "config.json")
 
-# Default bot name template applied to every NEW strategy block.
-# Change these here if you want a different global default.
 DEFAULT_FIRST_NAME = "WorldClass"
 DEFAULT_LAST_NAME  = "UnoBot"
 
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 def _load_existing() -> dict:
-    """Return the current config dict, or an empty dict if none exists."""
     if os.path.exists(CONFIG_PATH):
         try:
             with open(CONFIG_PATH, "r", encoding="utf-8") as f:
@@ -58,25 +45,16 @@ def _load_existing() -> dict:
     return {}
 
 
-def _build_config(existing: dict, overwrite: bool) -> dict:
-    """
-    Merge discovered strategies into the existing config and return the result.
-
-    If overwrite=True, the "strategies" block is rebuilt from scratch
-    (but active_strategy is preserved if it was already set).
-    """
-    discovered = list_strategies()  # {key: ClassName}
+def _build_config(existing: dict, overwrite: bool):
+    discovered = list_strategies()  # {folder_name: ClassName}
 
     if not discovered:
-        print("⚠️  No strategies found in strategies/. Nothing to generate.")
+        print("⚠️  No strategy folders found in strategies/. Nothing to generate.")
         sys.exit(0)
 
-    # Start from existing or empty
     config = {} if overwrite else dict(existing)
 
-    # Ensure top-level keys exist
     if "active_strategy" not in config:
-        # Default to the first discovered strategy (alphabetical)
         config["active_strategy"] = sorted(discovered.keys())[0]
 
     if overwrite or "strategies" not in config:
@@ -98,9 +76,7 @@ def _build_config(existing: dict, overwrite: bool) -> dict:
         }
         added.append((key, class_name))
 
-    # Keep strategies block in alphabetical key order
     config["strategies"] = dict(sorted(strategies_block.items()))
-
     return config, added, skipped
 
 
@@ -135,24 +111,14 @@ def _print_summary(config: dict, added: list, skipped: list, dry_run: bool):
     print()
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
 def main():
     parser = argparse.ArgumentParser(
-        description="Generate config/config.json from discovered strategies."
+        description="Generate config/config.json from discovered strategy folders."
     )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Print the result without writing to disk.",
-    )
-    parser.add_argument(
-        "--overwrite",
-        action="store_true",
-        help="Rebuild the strategies block from scratch (replaces existing bot names).",
-    )
+    parser.add_argument("--dry-run",   action="store_true",
+                        help="Print the result without writing to disk.")
+    parser.add_argument("--overwrite", action="store_true",
+                        help="Rebuild the strategies block from scratch.")
     args = parser.parse_args()
 
     existing = _load_existing()

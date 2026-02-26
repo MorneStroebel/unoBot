@@ -1,13 +1,19 @@
 """
 BaseStrategy — the foundation all UnoBot strategies must inherit from.
 
-This file serves two purposes:
-  1. It defines the abstract BaseStrategy class every strategy must extend.
-  2. It provides a fully-working reference implementation (plays the first legal
-     card it finds, draws when stuck) that you can copy and customise.
+Every strategy folder must contain:
+    __init__.py   – imports the strategy class
+    strategy.py   – defines the strategy class (inherits BaseStrategy)
+    stats.json    – auto-created; stores persistent stats for this strategy
 
-To create a new strategy, copy this file, rename the class, and override
-`choose_card`. See STRATEGY_GUIDE.md for full instructions.
+To create a new strategy:
+    1. mkdir strategies/my_strategy
+    2. Create __init__.py and strategy.py inside it
+    3. Run: python generate_config.py
+
+Stats are tracked automatically — just call record_card_played(),
+record_card_drawn(), etc. during choose_card(). Call record_uno_call()
+and record_penalty() from the socket listener.
 """
 
 import random
@@ -25,26 +31,114 @@ class BaseStrategy:
         on_game_start()
         on_game_end(won, placement, points)
         on_turn_start(hand, top_card, current_color)
+
+    Stats are tracked per-strategy automatically.  During choose_card() call:
+        self._record_play(card)     when you decide to play a card
+        self._record_draw()         when you decide to draw
     """
 
+    def __init__(self):
+        self._session_cards_played: int = 0
+        self._session_cards_drawn:  int = 0
+        self._session_uno_calls:    int = 0
+        self._session_penalties:    int = 0
+        self._session_card_types:   Dict[str, int] = {}
+        self._session_wild_colors:  Dict[str, int] = {
+            "RED": 0, "BLUE": 0, "GREEN": 0, "YELLOW": 0
+        }
+
     # ------------------------------------------------------------------
-    # Lifecycle hooks  (optional overrides)
+    # Session helpers
+    # ------------------------------------------------------------------
+
+    def _record_play(self, card: Dict, wild_color: Optional[str] = None):
+        self._session_cards_played += 1
+        card_type = card.get("type", "UNKNOWN")
+        self._session_card_types[card_type] = (
+            self._session_card_types.get(card_type, 0) + 1
+        )
+        if wild_color and wild_color in self._session_wild_colors:
+            self._session_wild_colors[wild_color] += 1
+
+    def _record_draw(self):
+        self._session_cards_drawn += 1
+
+    def _record_uno(self):
+        self._session_uno_calls += 1
+
+    def _record_penalty(self):
+        self._session_penalties += 1
+
+    def _reset_session(self):
+        self._session_cards_played = 0
+        self._session_cards_drawn  = 0
+        self._session_uno_calls    = 0
+        self._session_penalties    = 0
+        self._session_card_types   = {}
+        self._session_wild_colors  = {
+            "RED": 0, "BLUE": 0, "GREEN": 0, "YELLOW": 0
+        }
+
+    # ------------------------------------------------------------------
+    # Lifecycle hooks
     # ------------------------------------------------------------------
 
     def on_game_start(self):
         """Called once when a new game begins."""
-        pass
+        self._reset_session()
 
     def on_game_end(self, won: bool, placement: int, points: int):
-        """Called when the game ends with the final result."""
-        pass
+        """
+        Called when the game ends.
+        Subclasses must call super().on_game_end(...) to persist stats.
+        """
+        self._persist_stats(won, placement, points)
 
     def on_turn_start(self, hand: List[Dict], top_card: Dict, current_color: str):
         """Called at the start of every turn before choose_card."""
         pass
 
     # ------------------------------------------------------------------
-    # Core method — MUST be implemented by every strategy
+    # Stats persistence
+    # ------------------------------------------------------------------
+
+    def _persist_stats(self, won: bool, placement: int, points: int):
+        """Fallback stats save — only runs when no external stats_tracker is active.
+        When running via the UI/bot, SocketListener calls stats_tracker.end_game()
+        directly, which already persists everything. We guard against double-counting
+        by checking for the live_state.json sentinel written by start_game().
+        """
+        try:
+            import os
+            strategy_name = self._get_strategy_folder_name()
+            strategies_dir = os.path.dirname(os.path.abspath(__file__))
+            live_path = os.path.join(strategies_dir, strategy_name, "live_state.json")
+            # live_state.json exists while stats_tracker is managing this game session
+            if os.path.exists(live_path):
+                return  # stats_tracker.end_game() will handle it — don't double-count
+            from strategies.stats import StrategyStats
+            tracker = StrategyStats(strategy_name)
+            tracker.record_game(
+                won=won, placement=placement, points=points,
+                cards_played=self._session_cards_played,
+                cards_drawn=self._session_cards_drawn,
+                uno_calls=self._session_uno_calls,
+                penalties=self._session_penalties,
+                card_type_counts=dict(self._session_card_types),
+                wild_color_choices=dict(self._session_wild_colors),
+            )
+        except Exception as e:
+            print(f"⚠️  Could not save stats: {e}", flush=True)
+
+    def _get_strategy_folder_name(self) -> str:
+        module = self.__class__.__module__
+        parts = module.split(".")
+        if len(parts) >= 2 and parts[0] == "strategies":
+            return parts[1]
+        return self.__class__.__name__.lower()
+
+    # ------------------------------------------------------------------
+    # Core method — MUST be implemented by subclasses
     # ------------------------------------------------------------------
 
     def choose_card(
@@ -53,47 +147,16 @@ class BaseStrategy:
         top_card: Dict[str, Any],
         current_color: str,
     ) -> Tuple[Optional[int], Optional[str]]:
-        """
-        Decide which card to play (or whether to draw).
-
-        Args:
-            hand:          List of card dicts in the player's hand.
-                           Each card has at minimum:
-                             - "type":  "NUMBER" | "SKIP" | "REVERSE" | "DRAW_TWO"
-                                        | "WILD" | "WILD_DRAW_FOUR"
-                             - "color": "RED" | "BLUE" | "GREEN" | "YELLOW" | "BLACK"
-                             - "value": int (only present when type == "NUMBER")
-            top_card:      The card currently on top of the discard pile.
-                           Same structure as a hand card.
-            current_color: The active colour. Usually matches top_card["color"]
-                           but differs after a wild is played.
-
-        Returns:
-            (card_index, wild_color)
-              card_index  – int index into `hand` of the card to play,
-                            or None to draw instead.
-              wild_color  – "RED" | "BLUE" | "GREEN" | "YELLOW" when playing
-                            a WILD / WILD_DRAW_FOUR, otherwise None.
-        """
         raise NotImplementedError(
             f"{self.__class__.__name__} must implement choose_card()"
         )
 
     # ------------------------------------------------------------------
-    # Shared helpers  (available to every strategy)
+    # Shared helpers
     # ------------------------------------------------------------------
 
     @staticmethod
     def is_playable(card: Dict, top_card: Dict, current_color: str) -> bool:
-        """
-        Return True when *card* is legally playable given the discard state.
-
-        Rules implemented:
-          - Wild cards are always playable.
-          - A card matching the current colour is playable.
-          - A non-number action card matching the top card's type is playable.
-          - A number card matching both type and value is playable.
-        """
         if card["type"].startswith("WILD"):
             return True
         if card["color"] == current_color:
@@ -112,10 +175,6 @@ class BaseStrategy:
     def get_playable_cards(
         hand: List[Dict], top_card: Dict, current_color: str
     ) -> List[Tuple[int, Dict]]:
-        """
-        Return a list of (index, card) pairs for every playable card in hand.
-        Order matches the original hand order.
-        """
         return [
             (i, card)
             for i, card in enumerate(hand)
@@ -124,67 +183,19 @@ class BaseStrategy:
 
     @staticmethod
     def pick_wild_color(hand: List[Dict]) -> str:
-        """
-        Choose the best colour to call after playing a wild card.
-        Picks the colour you hold the most of; falls back to a random choice.
-        """
         counts: Dict[str, int] = {}
         for card in hand:
             color = card.get("color", "")
             if color and color != "BLACK":
                 counts[color] = counts.get(color, 0) + 1
-
         if counts:
             return max(counts, key=counts.__getitem__)
         return random.choice(["RED", "BLUE", "GREEN", "YELLOW"])
 
     @staticmethod
     def cards_by_type(hand: List[Dict], card_type: str) -> List[Tuple[int, Dict]]:
-        """Return all (index, card) pairs whose type matches *card_type*."""
         return [(i, c) for i, c in enumerate(hand) if c["type"] == card_type]
 
     @staticmethod
     def count_color(hand: List[Dict], color: str) -> int:
-        """Count how many cards of *color* are in hand."""
         return sum(1 for c in hand if c.get("color") == color)
-
-
-# ---------------------------------------------------------------------------
-# Reference implementation
-# ---------------------------------------------------------------------------
-
-class BaseBotStrategy(BaseStrategy):
-    """
-    The default UnoBot strategy — simple and fully working.
-
-    Behaviour:
-      1. Plays the first playable non-wild card found.
-      2. Falls back to the first playable wild, choosing the most-held colour.
-      3. Draws if nothing is playable.
-
-    This is intentionally simple — copy base_strategy.py as a starting point for your own
-    strategy and customise choose_card to your liking.
-    """
-
-    def choose_card(
-        self,
-        hand: List[Dict],
-        top_card: Dict,
-        current_color: str,
-    ) -> Tuple[Optional[int], Optional[str]]:
-
-        playable = self.get_playable_cards(hand, top_card, current_color)
-
-        if not playable:
-            return None, None  # Signal to draw a card
-
-        # Prefer non-wild cards first
-        non_wilds = [(i, c) for i, c in playable if not c["type"].startswith("WILD")]
-        if non_wilds:
-            idx, _ = non_wilds[0]
-            return idx, None
-
-        # Fall back to wild — pick best colour
-        idx, _ = playable[0]
-        wild_color = self.pick_wild_color(hand)
-        return idx, wild_color

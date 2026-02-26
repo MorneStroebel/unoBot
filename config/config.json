@@ -1,17 +1,27 @@
 {
-  "active_strategy": "grand_master",
+  "active_strategy": "gpt_base_bot",
   "strategies": {
-    "base_bot": {
+    "adaptive_bot": {
+      "bot_first_name": "Test",
+      "bot_last_name": "Bot"
+    },
+    "claude_base_bot": {
+      "bot_first_name": "claude",
+      "bot_last_name": "base"
+    },
+    "claude_nero_bot": {
       "bot_first_name": "WorldClass",
       "bot_last_name": "UnoBot"
     },
-    "grand_master": {
-      "bot_first_name": "WorldClass",
-      "bot_last_name": "Grandmaster"
+    "gemini_base_bot": {
+      "bot_first_name": "gemini",
+      "bot_last_name": "base"
     },
-    "smart_bot": {
-      "bot_first_name": "WorldClass",
-      "bot_last_name": "UnoBot"
+    "gpt_base_bot": {
+      "bot_first_name": "gpt",
+      "bot_last_name": "base"
     }
-  }
+  },
+  "bot_first_name": "Global",
+  "bot_last_name": "Default"
 }

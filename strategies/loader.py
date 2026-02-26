@@ -1,56 +1,52 @@
 """
-Strategy loader — auto-discovers all strategy classes in this package.
+Strategy loader — auto-discovers folder-based strategy packages.
 
-Adding a new strategy requires ONLY dropping a .py file into strategies/.
-No changes to this file or any other file are needed.
+Each strategy lives in its own sub-folder:
+    strategies/
+        adaptive_bot/
+            __init__.py     ← must export the strategy class
+            strategy.py     ← defines the class (inherits BaseStrategy)
+            stats.json      ← auto-created by StrategyStats
+            learning.json   ← optional; used by learning strategies
 
 Discovery rules:
-  - Every .py file in strategies/ is scanned (including base_strategy.py).
-  - Any class that inherits from BaseStrategy and is NOT BaseStrategy itself
-    is registered automatically.
-  - The registry key is the snake_case form of the class name with a trailing
-    _strategy suffix stripped:
-      BaseBotStrategy      →  base_bot
-      MyAwesomeStrategy    →  my_awesome
-      GeminiBot            →  gemini_bot
+  - Every sub-folder that contains an __init__.py is scanned.
+  - Any class that inherits from BaseStrategy is registered.
+  - The registry key is the folder name (already snake_case).
+
+Adding a new strategy:
+    1. Create strategies/my_strategy/__init__.py and strategy.py
+    2. Run: python generate_config.py
+    3. No other files need editing.
 """
 
 import importlib
 import inspect
 import os
-import re
 from typing import Dict, Type
 
 from strategies.base_strategy import BaseStrategy
 
-# Only the abstract base is excluded — everything else is fair game
 _EXCLUDED_CLASSES = {"BaseStrategy"}
 
 
-def _to_snake_case(name: str) -> str:
-    """Convert CamelCase class name to snake_case registry key."""
-    s = re.sub(r"(?<!^)(?=[A-Z])", "_", name).lower()
-    if s.endswith("_strategy"):
-        s = s[: -len("_strategy")]
-    return s
-
-
 def _discover_strategies() -> Dict[str, Type[BaseStrategy]]:
-    """Scan the strategies package and return a {key: class} registry."""
+    """Scan strategy sub-folders and return a {folder_name: class} registry."""
     registry: Dict[str, Type[BaseStrategy]] = {}
-
     strategies_dir = os.path.dirname(os.path.abspath(__file__))
-    skip_files = {"__init__.py", "loader.py"}
 
-    for filename in sorted(os.listdir(strategies_dir)):
-        if not filename.endswith(".py") or filename in skip_files:
-            continue
+    for entry in sorted(os.listdir(strategies_dir)):
+        folder = os.path.join(strategies_dir, entry)
+        init   = os.path.join(folder, "__init__.py")
 
-        module_name = f"strategies.{filename[:-3]}"
+        if not os.path.isdir(folder) or not os.path.exists(init):
+            continue  # skip plain files and folders without __init__.py
+
+        module_name = f"strategies.{entry}"
         try:
             module = importlib.import_module(module_name)
         except Exception as e:
-            print(f"⚠️  Could not load strategy module '{module_name}': {e}")
+            print(f"⚠️  Could not load strategy package '{module_name}': {e}")
             continue
 
         for _, obj in inspect.getmembers(module, inspect.isclass):
@@ -59,19 +55,18 @@ def _discover_strategies() -> Dict[str, Type[BaseStrategy]]:
                 and issubclass(obj, BaseStrategy)
                 and obj is not BaseStrategy
             ):
-                key = _to_snake_case(obj.__name__)
-                registry[key] = obj
+                registry[entry] = obj  # key = folder name
+                break  # one class per folder
 
     return registry
 
 
-def load_strategy(name: str = "base_bot") -> BaseStrategy:
+def load_strategy(name: str = "adaptive_bot") -> BaseStrategy:
     """
-    Instantiate a strategy by its registry key.
+    Instantiate a strategy by its folder name.
 
     Args:
-        name: Snake_case strategy name (e.g. "base_bot", "gemini_bot").
-              Defaults to "base_bot" (BaseBotStrategy from base_strategy.py).
+        name: Folder name of the strategy (e.g. "adaptive_bot").
 
     Returns:
         An instance of the requested strategy.
@@ -88,13 +83,10 @@ def load_strategy(name: str = "base_bot") -> BaseStrategy:
         )
 
     cls = registry[name]
-    print(f"🧠 Loaded strategy: {cls.__name__}  (key: '{name}')")
+    print(f"🧠 Loaded strategy: {cls.__name__}  (folder: '{name}')")
     return cls()
 
 
 def list_strategies() -> Dict[str, str]:
-    """
-    Return a {key: class_name} dict of all discoverable strategies.
-    Useful for UI / CLI menus.
-    """
+    """Return a {folder_name: class_name} dict of all discoverable strategies."""
     return {k: v.__name__ for k, v in sorted(_discover_strategies().items())}

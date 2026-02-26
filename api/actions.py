@@ -18,12 +18,19 @@ def _bot_last_name() -> str:
 # Room actions
 # -----------------------------
 def get_room_id():
-    """Get the first available room or create a new sandbox room."""
+    """Get the first WAITING room, or create a new one if none are available."""
     resp = get("/rooms/list")
-    rooms = resp.json()
+    rooms = resp.json() if resp.status_code == 200 else []
     if rooms:
-        return rooms[0]["id"]
-    # Fallback: create sandbox
+        # Skip rooms that are already playing or finished
+        waiting = [
+            r for r in rooms
+            if str(r.get("status", "")).upper() not in ("PLAYING", "ENDED", "FINISHED")
+        ]
+        if waiting:
+            return waiting[0]["id"]
+    # No waiting rooms found — create a fresh one
+    print("🏠 No waiting rooms found — creating a new room", flush=True)
     resp = post("/rooms", {"isSandbox": IS_SANDBOX_MODE})
     room_id = resp.json().get("roomId")
     return room_id

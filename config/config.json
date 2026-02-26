@@ -1,9 +1,17 @@
 {
-  "active_strategy": "my_strategy",
+  "active_strategy": "claude_nero_bot",
   "strategies": {
     "adaptive_bot": {
       "bot_first_name": "Test",
       "bot_last_name": "Bot"
+    },
+    "claude_nero_bot": {
+      "bot_first_name": "nero",
+      "bot_last_name": "UnoBot"
+    },
+    "my_strategy": {
+      "bot_first_name": "WorldClass",
+      "bot_last_name": "UnoBot"
     }
   },
   "bot_first_name": "Global",

@@ -409,12 +409,20 @@ def api_strategy_upload():
             shutil.rmtree(dest)
         shutil.copytree(src, dest)
 
+        # Invalidate ONLY the specific strategy module cache (not the parent package)
+        # Removing the parent "strategies" module breaks already-imported refs in this process
+        import sys, importlib
+        to_remove = [k for k in sys.modules if k == f"strategies.{strategy_name}"
+                     or k.startswith(f"strategies.{strategy_name}.")]
+        for key in to_remove:
+            del sys.modules[key]
+
         # Re-discover to validate it loads
         try:
             discovered = list_strategies()
             if strategy_name not in discovered:
                 shutil.rmtree(dest)
-                return jsonify({"ok": False, "error": "Strategy loaded but no BaseStrategy subclass found"}), 400
+                return jsonify({"ok": False, "error": "No BaseStrategy subclass found — check __init__.py exports a BaseStrategy subclass"}), 400
         except Exception as e:
             shutil.rmtree(dest, ignore_errors=True)
             return jsonify({"ok": False, "error": f"Strategy failed to import: {e}"}), 400

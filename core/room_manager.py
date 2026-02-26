@@ -141,7 +141,7 @@ class RoomManager:
     # -------------------------------------------------
     # REJOIN
     # -------------------------------------------------
-    def rejoin_room(self, delay=3, force_create=False):
+    def rejoin_room(self, delay=3, force_create=False, mode="auto"):
         print(f"⏳ Rejoining in {delay}s...", flush=True)
         time.sleep(delay)
 
@@ -153,11 +153,42 @@ class RoomManager:
             print("🏠 Auto Grind — creating a new room", flush=True)
             return self.create_and_join_room(only_players=self.only_players)
 
+        if mode == "wait":
+            # Wait mode: keep polling until a room appears (no timeout)
+            print("🔄 Wait mode — polling for open room…", flush=True)
+            return self.wait_for_open_room_forever(only_players=self.only_players)
+
         print("🔄 Finding a new WAITING room", flush=True)
         return self.join_or_create_room(
             target_players=TARGET_PLAYERS,
             only_players=self.only_players
         )
+
+    def wait_for_open_room_forever(self, only_players=False):
+        """Poll indefinitely until a WAITING room is found and joined. Never creates rooms."""
+        from api.client import get as api_get
+        print(f"♾ Polling for open room (no timeout)…", flush=True)
+        while True:
+            try:
+                resp = api_get("/rooms/list")
+                rooms = resp.json() if resp.status_code == 200 else []
+                waiting = [
+                    r for r in rooms
+                    if str(r.get("status", "")).upper() not in ("PLAYING", "ENDED", "FINISHED")
+                ]
+                if waiting:
+                    room_id   = waiting[0]["id"]
+                    player_id = join_room(room_id, only_players=only_players)
+                    if room_id and player_id:
+                        self._set_current_room(room_id, player_id)
+                        print(f"✅ Joined waiting room {room_id}", flush=True)
+                        return room_id, player_id
+                else:
+                    print("⏳ No waiting rooms found — retrying…", flush=True)
+            except Exception as e:
+                if DEBUG_MODE:
+                    print(f"⏳ Waiting: {e}", flush=True)
+            time.sleep(ROOM_CHECK_INTERVAL)
 
     # -------------------------------------------------
     # LEAVE (THIS NOW ALWAYS FIRES)

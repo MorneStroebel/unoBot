@@ -29,6 +29,8 @@ _STRATEGIES_DIR = os.path.dirname(os.path.abspath(__file__))
 
 # ── Schema helpers ────────────────────────────────────────────────────────────
 
+_MAX_HISTORY = 50   # number of recent games to keep for trend charts
+
 def _default_stats() -> Dict:
     return {
         "games_played": 0,
@@ -46,6 +48,7 @@ def _default_stats() -> Dict:
         "card_type_counts": {},
         "wild_color_choices": {"RED": 0, "BLUE": 0, "GREEN": 0, "YELLOW": 0},
         "last_updated": None,
+        "games_history": [],   # list of {won, placement, points, cards_played, timestamp}
     }
 
 
@@ -186,6 +189,16 @@ class StrategyStats:
             for color, cnt in live.get("wild_color_choices", {}).items():
                 if color in d["wild_color_choices"]:
                     d["wild_color_choices"][color] += cnt
+            # Append to rolling game history (capped at _MAX_HISTORY)
+            d["games_history"] = (d.get("games_history") or []) + [{
+                "won":          won,
+                "placement":    placement,
+                "points":       points if won else 0,
+                "cards_played": live.get("cards_played", 0),
+                "timestamp":    datetime.now().isoformat(),
+            }]
+            if len(d["games_history"]) > _MAX_HISTORY:
+                d["games_history"] = d["games_history"][-_MAX_HISTORY:]
             self._save_stats()          # ← single disk write for lifetime stats
 
         self._clear_live()              # ← delete live_state.json, free memory

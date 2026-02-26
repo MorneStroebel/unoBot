@@ -1,25 +1,27 @@
 {
-  "active_strategy": "claude_nero_bot",
+  "active_strategy": "gpt_base_bot",
   "strategies": {
     "adaptive_bot": {
       "bot_first_name": "Test",
       "bot_last_name": "Bot"
     },
-    "claude_nero_bot": {
-      "bot_first_name": "nero",
-      "bot_last_name": "UnoBot"
+    "claude_base_bot": {
+      "bot_first_name": "claude",
+      "bot_last_name": "base"
     },
-    "my_strategy": {
+    "claude_nero_bot": {
       "bot_first_name": "WorldClass",
       "bot_last_name": "UnoBot"
+    },
+    "gemini_base_bot": {
+      "bot_first_name": "gemini",
+      "bot_last_name": "base"
+    },
+    "gpt_base_bot": {
+      "bot_first_name": "gpt",
+      "bot_last_name": "base"
     }
   },
   "bot_first_name": "Global",
-  "bot_last_name": "Default",
-  "is_sandbox_mode": true,
-  "auto_rejoin": true,
-  "only_players_mode": false,
-  "debug_mode": false,
-  "rejoin_delay": 3,
-  "room_check_interval": 5
+  "bot_last_name": "Default"
 }

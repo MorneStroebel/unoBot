@@ -195,9 +195,11 @@ def start_bot():
                 if should_exit:
                     break
                 if auto_rejoin:
-                    # auto mode always creates a new room; other modes find existing ones
+                    # auto mode always creates a new room; wait mode polls forever
                     room_id, player_id = room_manager.rejoin_room(
-                        delay=rejoin_delay, force_create=(mode == "auto")
+                        delay=rejoin_delay,
+                        force_create=(mode == "auto"),
+                        mode=mode,
                     )
                 elif _UI_MODE:
                     # In UI mode without auto-rejoin, stop after one game

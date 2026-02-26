@@ -310,6 +310,16 @@ select option{background:var(--surf2)}
       border-radius: 3px;
       color: var(--blue);
     }
+
+    /* ── Stats graphs ───────────────────────────────── */
+    .sparkline-wrap { position:relative;height:72px;margin:8px 0 0; }
+    .sparkline-canvas { width:100%;height:72px;display:block; }
+    .graph-legend {
+      display:flex;gap:12px;margin-top:6px;
+      font-family:var(--mono);font-size:10px;color:var(--muted);
+    }
+    .graph-legend span::before { content:'■ ';font-size:9px; }
+    .trend-card { margin-top:16px; }
 </style>
 </head>
 <body>
@@ -1223,7 +1233,7 @@ Upload the zip via the UnoBot UI → Strategies → Upload Strategy.
 // ═══════════════════════════════════════════════════
 // State
 // ═══════════════════════════════════════════════════
-let _status   = {status:'stopped',paused:false,active_strategy:'—',pid:null,uptime_seconds:null,room_id:null,is_sandbox_mode:false};
+let _status   = {status:'stopped',paused:false,active_strategy:'—',pid:null,uptime_seconds:null,room_id:null,is_sandbox_mode:true};
 let _strats   = [];
 let _launchMode = 'auto';
 let _targets  = [];
@@ -1248,7 +1258,7 @@ function navTo(id, el) {
   document.getElementById('page-' + id).classList.add('active');
   el.classList.add('active');
   if (id === 'strategies') loadStrats();
-  if (id === 'stats')      populateStatsSel();
+  if (id === 'stats')      { populateStatsSel(); autoLoadActiveStats(); }
   if (id === 'config')     loadConfig();
 }
 
@@ -1343,16 +1353,12 @@ function renderStatus() {
   setPlayBtnsDisabled(running);
   if (!running) { _activeMode = null; highlightPlayCard(null); }
 
-  // Auto Grind requires sandbox mode — must be explicitly true
-  const sandbox = s.is_sandbox_mode === true;
-  const autoBtn  = document.getElementById('btn-auto');
-  const autoBadge = document.getElementById('auto-sandbox-badge');
-  const autoWarn  = document.getElementById('auto-sandbox-warn');
+  // Auto Grind button is always available — sandbox is optional
   if (!running) {
-    autoBtn.disabled = !sandbox;
-    autoBadge.style.display = sandbox ? 'none' : '';
-    autoWarn.style.display  = sandbox ? 'none' : '';
-    document.getElementById('pc-auto').style.opacity = sandbox ? '' : '0.55';
+    document.getElementById('btn-auto').disabled = false;
+    document.getElementById('auto-sandbox-badge').style.display = 'none';
+    document.getElementById('auto-sandbox-warn').style.display  = 'none';
+    document.getElementById('pc-auto').style.opacity = '';
   }
   const pb = document.getElementById('btn-pause');
   const rb = document.getElementById('btn-resume');
@@ -1402,11 +1408,7 @@ function setPlayBtnsDisabled(disabled) {
 }
 
 async function startMode(mode) {
-  // Auto Grind requires sandbox mode
-  if (mode === 'auto' && _status.is_sandbox_mode !== true) {
-    toast('⚠ Auto Grind requires Sandbox Mode. Enable it in Bot Identity → Behaviour.', 'warn');
-    return;
-  }
+  // (sandbox mode is recommended for Auto Grind but not enforced here)
   const strategy = document.getElementById('launch-strat').value || null;
   try {
     const autoRejoin = (mode !== 'pvp');
@@ -1706,6 +1708,22 @@ function populateStatsSel() {
   if (cur) sel.value = cur;
 }
 
+async function autoLoadActiveStats() {
+  // Ensure both strats and status are fresh
+  if (!_strats.length) await loadStrats();
+  try { _status = await api('/status'); } catch(_) {}
+  populateStatsSel();
+  const sel = document.getElementById('stats-sel');
+  // Pick: current selection → active strategy → first strategy in list
+  const target = sel.value
+    || (_status.active_strategy && _status.active_strategy !== '—' ? _status.active_strategy : null)
+    || (_strats.length ? _strats[0].id : null);
+  if (target) {
+    sel.value = target;
+    if (sel.value) loadStats(sel.value);
+  }
+}
+
 
 // ═══════════════════════════════════════════════════
 // Strategy config modal
@@ -1812,41 +1830,118 @@ async function loadStats(id) {
   } catch(e) { el.innerHTML = `<div class="empty"><div>Could not load stats</div></div>`; }
 }
 
+// ── SVG chart helpers ─────────────────────────────────────────────────────
+
+function svgDonut(slices, r=52, stroke=18, size=140) {
+  // slices: [{value, color, label}]
+  const total = slices.reduce((a,b) => a + b.value, 0) || 1;
+  const cx = size/2, cy = size/2;
+  const circ = 2 * Math.PI * r;
+  let offset = -Math.PI/2; // start at 12 o'clock
+  const paths = slices.map(({value, color}) => {
+    const frac = value / total;
+    const angle = frac * 2 * Math.PI;
+    const x1 = cx + r * Math.cos(offset);
+    const y1 = cy + r * Math.sin(offset);
+    offset += angle;
+    const x2 = cx + r * Math.cos(offset);
+    const y2 = cy + r * Math.sin(offset);
+    const large = angle > Math.PI ? 1 : 0;
+    if (frac < 0.001) return '';
+    return `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z"
+      fill="${color}" opacity="0.85"/>`;
+  }).join('');
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surf2)" stroke-width="${stroke}"/>
+    ${paths}
+    <circle cx="${cx}" cy="${cy}" r="${r - stroke/2 - 2}" fill="var(--surf)"/>
+  </svg>`;
+}
+
+function svgBars(items, maxH=80, w=220) {
+  // items: [{label, value, color}]
+  if (!items.length) return '';
+  const max = Math.max(1, ...items.map(i => i.value));
+  const bw = Math.floor((w - (items.length-1)*6) / items.length);
+  const bars = items.map((item, i) => {
+    const bh = Math.max(2, Math.round((item.value / max) * maxH));
+    const x = i * (bw + 6);
+    const y = maxH - bh;
+    return `<g>
+      <rect x="${x}" y="${y}" width="${bw}" height="${bh}" rx="3" fill="${item.color}" opacity="0.85"/>
+      <text x="${x + bw/2}" y="${maxH + 14}" text-anchor="middle"
+        font-family="monospace" font-size="8" fill="var(--muted)">${item.label}</text>
+      <text x="${x + bw/2}" y="${y - 3}" text-anchor="middle"
+        font-family="monospace" font-size="9" fill="var(--fg)">${item.value}</text>
+    </g>`;
+  }).join('');
+  return `<svg width="${w}" height="${maxH + 24}" viewBox="0 0 ${w} ${maxH + 24}">${bars}</svg>`;
+}
+
+function svgWinLoss(wins, losses) {
+  const total = Math.max(1, wins + losses);
+  const wp = (wins / total) * 100;
+  const lp = (losses / total) * 100;
+  return `<div style="margin-top:4px">
+    <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;margin-bottom:5px">
+      <span style="color:var(--green)">Wins ${wins}</span>
+      <span style="color:var(--muted)">${wp.toFixed(0)}% win rate</span>
+      <span style="color:var(--red)">Losses ${losses}</span>
+    </div>
+    <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px">
+      <div style="flex:${wins};background:var(--green);opacity:.8;border-radius:5px 0 0 5px;min-width:${wins?2:0}px"></div>
+      <div style="flex:${losses};background:var(--red);opacity:.8;border-radius:0 5px 5px 0;min-width:${losses?2:0}px"></div>
+    </div>
+  </div>`;
+}
+
 function renderStats(id, s) {
-  const total = Math.max(1, s.placements['1']+s.placements['2']+s.placements['3']+s.placements['4+']);
-  const placements = [
-    {k:'1',label:'🥇 1st',color:'var(--yellow)'},
-    {k:'2',label:'🥈 2nd',color:'var(--blue)'},
-    {k:'3',label:'🥉 3rd',color:'var(--orange)'},
-    {k:'4+',label:'4th+',color:'var(--muted)'},
-  ].map(p => {
-    const cnt = s.placements[p.k], pct = ((cnt/total)*100).toFixed(0);
-    return `<div style="margin-bottom:12px">
+  const placementSlices = [
+    {value: s.placements['1']||0,  color:'#F0B429', label:'1st'},
+    {value: s.placements['2']||0,  color:'#3B82F6', label:'2nd'},
+    {value: s.placements['3']||0,  color:'#F97316', label:'3rd'},
+    {value: s.placements['4+']||0, color:'#64748b', label:'4th+'},
+  ];
+  const pTotal = Math.max(1, placementSlices.reduce((a,b) => a+b.value, 0));
+
+  const placementBars = placementSlices.map(({value, color, label}) => {
+    const pct = ((value/pTotal)*100).toFixed(0);
+    return `<div style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;margin-bottom:4px">
-        <span>${p.label}</span><span style="color:var(--muted)">${cnt} (${pct}%)</span>
+        <span>${label === '1st' ? '🥇' : label === '2nd' ? '🥈' : label === '3rd' ? '🥉' : '4th+'} ${label}</span>
+        <span style="color:var(--muted)">${value} <span style="opacity:.6">(${pct}%)</span></span>
       </div>
-      <div style="background:var(--border);border-radius:3px;height:6px;overflow:hidden">
-        <div style="width:${pct}%;height:100%;background:${p.color};border-radius:3px;transition:width .5s"></div>
+      <div style="background:var(--border);border-radius:3px;height:7px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;transition:width .6s;opacity:.85"></div>
       </div></div>`;
   }).join('');
 
-  const cMap = {RED:'var(--red)',BLUE:'var(--blue)',GREEN:'var(--green)',YELLOW:'var(--yellow)'};
+  const cHex = {RED:'#E63946', BLUE:'#3B82F6', GREEN:'#22C55E', YELLOW:'#F0B429'};
   const cTotal = Math.max(1, Object.values(s.wild_color_choices||{}).reduce((a,b)=>a+b,0));
-  const colorBars = Object.entries(s.wild_color_choices||{}).map(([col,cnt]) => {
+  const wildSlices = Object.entries(s.wild_color_choices||{}).map(([col,cnt]) =>
+    ({value:cnt, color:cHex[col]||'#64748b', label:col.substring(0,1)}));
+  const wildBars = Object.entries(s.wild_color_choices||{}).map(([col,cnt]) => {
     const pct = ((cnt/cTotal)*100).toFixed(0);
-    return `<div style="margin-bottom:8px">
+    return `<div style="margin-bottom:7px">
       <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;margin-bottom:3px">
-        <span style="color:${cMap[col]||'var(--muted)'}">${col}</span>
+        <span style="color:${cHex[col]||'var(--muted)'}">${col}</span>
         <span style="color:var(--muted)">${cnt} (${pct}%)</span>
       </div>
-      <div style="background:var(--border);border-radius:3px;height:4px;overflow:hidden">
-        <div style="width:${pct}%;height:100%;background:${cMap[col]||'var(--muted)'};border-radius:3px;transition:width .5s"></div>
+      <div style="background:var(--border);border-radius:3px;height:5px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${cHex[col]||'#64748b'};border-radius:3px;transition:width .6s;opacity:.85"></div>
       </div></div>`;
   }).join('');
+
+  const cardTypeEntries = Object.entries(s.card_type_counts||{}).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const ctColors = {NUMBER:'#3B82F6',SKIP:'#F97316',REVERSE:'#A855F7',DRAW_TWO:'#E63946',WILD:'#F0B429',WILD_DRAW_FOUR:'#EF4444'};
+  const cardBarsItems = cardTypeEntries.map(([t,v]) => ({label:t.replace('_',' ').replace('WILD DRAW','WD4').substring(0,5), value:v, color:ctColors[t]||'#64748b'}));
+
+  const hasCardData = cardTypeEntries.length > 0;
+  const hasWildData = wildSlices.some(s => s.value > 0);
 
   return `
     <div class="card">
-      <div class="card-title">${fmtId(id)} <span style="font-family:var(--mono);font-size:11px;font-weight:400;color:var(--muted)">${s.name||''}</span>
+      <div class="card-title">${fmtId(id)}
         <button class="btn btn-red btn-xs" onclick="resetStats('${id}')">🗑 Reset</button>
       </div>
       <div class="stat-grid">
@@ -1859,21 +1954,178 @@ function renderStats(id, s) {
         <div class="stat-box"><div class="stat-lbl">Cards Played</div><div class="stat-val b">${s.total_cards_played}</div></div>
         <div class="stat-box"><div class="stat-lbl">Cards Drawn</div><div class="stat-val">${s.total_cards_drawn}</div></div>
       </div>
+      ${svgWinLoss(s.wins, s.losses)}
     </div>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-      <div class="card"><div class="card-title">Placements</div>${placements}</div>
-      <div class="card"><div class="card-title">Wild Colors</div>
-        ${colorBars || `<div style="color:var(--muted);font-size:12px">No wild card data yet</div>`}
-        <div style="margin-top:14px">
-          ${[['Cards Played',s.total_cards_played],['Cards Drawn',s.total_cards_drawn],
-             ['UNO Calls',s.total_uno_calls],['Penalties',s.total_penalties]].map(([l,v]) =>
-            `<div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;padding:5px 0;border-bottom:1px solid var(--border)">
-              <span style="color:var(--muted)">${l}</span><span>${v}</span></div>`
-          ).join('')}
+      <!-- Placement chart -->
+      <div class="card">
+        <div class="card-title">Placements</div>
+        <div style="display:flex;align-items:center;gap:16px">
+          <div style="flex-shrink:0">${svgDonut(placementSlices)}</div>
+          <div style="flex:1">${placementBars}</div>
         </div>
       </div>
+
+      <!-- Wild color chart -->
+      <div class="card">
+        <div class="card-title">Wild Color Choices</div>
+        ${hasWildData
+          ? `<div style="display:flex;align-items:center;gap:16px">
+               <div style="flex-shrink:0">${svgDonut(wildSlices)}</div>
+               <div style="flex:1">${wildBars}</div>
+             </div>`
+          : `<div style="color:var(--muted);font-size:12px;margin-top:8px">No wild card data yet</div>`}
+      </div>
     </div>
-    ${s.last_updated ? `<div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-align:right;margin-top:-8px">Updated: ${s.last_updated.substring(0,19)}</div>` : ''}`;
+
+    <!-- Card type bar chart -->
+    <div class="card">
+      <div class="card-title">Card Types Played</div>
+      ${hasCardData
+        ? `<div style="overflow-x:auto;padding:4px 0">
+             ${svgBars(cardBarsItems, 90, Math.max(220, cardBarsItems.length * 38))}
+           </div>
+           <div style="margin-top:10px">
+             ${cardTypeEntries.map(([t,v]) =>
+               `<div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;padding:4px 0;border-bottom:1px solid var(--border)">
+                 <span style="color:${ctColors[t]||'var(--muted)'}">● ${t}</span>
+                 <span>${v}</span>
+               </div>`
+             ).join('')}
+           </div>`
+        : `<div style="color:var(--muted);font-size:12px;margin-top:8px">No card type data yet</div>`}
+    </div>
+
+    <div class="card" style="padding:14px 18px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
+        ${[['Cards Played',s.total_cards_played,'b'],['Cards Drawn',s.total_cards_drawn,''],
+           ['UNO Calls',s.total_uno_calls,'y'],['Penalties',s.total_penalties,'r']].map(([l,v,cls]) =>
+          `<div style="text-align:center">
+            <div style="font-family:var(--mono);font-size:22px;font-weight:700" class="${cls}">${v}</div>
+            <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-top:2px">${l}</div>
+          </div>`
+        ).join('')}
+      </div>
+    </div>
+
+    ${s.last_updated ? `<div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-align:right;margin-top:-8px">Updated: ${s.last_updated.substring(0,19)}</div>` : ''}
+    ${renderGameHistoryCharts(s)}`;
+  // Draw charts after DOM insertion (deferred so canvas exists)
+  setTimeout(() => drawHistoryCharts(s), 50);
+  return html;
+}
+
+function renderGameHistoryCharts(s) {
+  const h = s.games_history || [];
+  if (!h.length) return '';
+  return `
+    <div class="card trend-card">
+      <div class="card-title">Game History <span style="font-family:var(--mono);font-size:10px;font-weight:400;color:var(--muted)">last ${h.length} games</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Win / Loss Streak</div>
+          <div class="sparkline-wrap"><canvas class="sparkline-canvas" id="chart-wl"></canvas></div>
+        </div>
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Points per Game</div>
+          <div class="sparkline-wrap"><canvas class="sparkline-canvas" id="chart-pts"></canvas></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px">
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Placement Distribution</div>
+          <div class="sparkline-wrap"><canvas class="sparkline-canvas" id="chart-place" style="height:80px"></canvas></div>
+        </div>
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Cards Played per Game</div>
+          <div class="sparkline-wrap"><canvas class="sparkline-canvas" id="chart-cards"></canvas></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function drawHistoryCharts(s) {
+  const h = s.games_history || [];
+  if (!h.length) return;
+
+  const style = getComputedStyle(document.documentElement);
+  const green  = '#22c55e';
+  const red    = '#e63946';
+  const blue   = '#3b82f6';
+  const yellow = '#f0b429';
+  const muted  = style.getPropertyValue('--muted').trim() || '#94a3b8';
+  const border = style.getPropertyValue('--border').trim() || '#2a3343';
+
+  function drawBarChart(canvasId, values, colorFn, maxOverride) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.offsetWidth; const H = canvas.offsetHeight;
+    canvas.width = W; canvas.height = H;
+    ctx.clearRect(0, 0, W, H);
+    if (!values.length) return;
+    const max = maxOverride || Math.max(...values, 1);
+    const barW = Math.max(2, Math.floor((W - values.length) / values.length));
+    const gap  = Math.floor((W - barW * values.length) / Math.max(values.length - 1, 1));
+    values.forEach((v, i) => {
+      const x = i * (barW + gap);
+      const h = Math.round((v / max) * (H - 4));
+      ctx.fillStyle = border;
+      ctx.fillRect(x, 0, barW, H);
+      ctx.fillStyle = colorFn(v, i);
+      ctx.fillRect(x, H - h, barW, h);
+    });
+  }
+
+  function drawLineChart(canvasId, values, color) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.offsetWidth; const H = canvas.offsetHeight;
+    canvas.width = W; canvas.height = H;
+    ctx.clearRect(0, 0, W, H);
+    if (values.length < 2) return;
+    const max = Math.max(...values, 1);
+    const step = W / (values.length - 1);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    values.forEach((v, i) => {
+      const x = i * step;
+      const y = H - 4 - Math.round((v / max) * (H - 8));
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    // Fill under
+    ctx.lineTo((values.length-1)*step, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+    ctx.fillStyle = color + '22';
+    ctx.fill();
+  }
+
+  // Win/Loss bars
+  drawBarChart('chart-wl', h.map(g => 1), (_, i) => h[i].won ? green : red, 1);
+
+  // Points line
+  drawLineChart('chart-pts', h.map(g => g.points), blue);
+
+  // Placement bars (1=best)
+  drawBarChart('chart-place', h.map(g => Math.max(0, 5 - g.placement)), (v) => {
+    if (v >= 4) return yellow;
+    if (v === 3) return blue;
+    if (v === 2) return muted;
+    return red;
+  }, 4);
+
+  // Cards played line
+  drawLineChart('chart-cards', h.map(g => g.cards_played), yellow);
+}
+
+function _renderStatsOld(id, s) {
+  return '';
 }
 
 
@@ -2104,8 +2356,19 @@ async function pollLiveStats() {
     const snap = await api('/live');
     renderLiveStats(snap);
   } catch(e) {
-    // No active strategy or bot not running — clear live panel
-    renderLiveStats(null);
+    // Bot not running — try to show lifetime stats for active strategy
+    const strat = _status?.active_strategy;
+    if (strat && strat !== '—') {
+      try {
+        const s = await api(`/strategies/${strat}/stats`);
+        // Wrap in live_snapshot format with no active game
+        renderLiveStats({ ...s, live_game: null, strategy_id: strat });
+      } catch(_) {
+        renderLiveStats(null);
+      }
+    } else {
+      renderLiveStats(null);
+    }
   }
 }
 
@@ -2152,6 +2415,7 @@ function renderLiveStats(snap) {
   if (!snap) return;
 
   // Lifetime stats (always show — merged with live delta when game is active)
+  // snap may come from /api/live (has live_game) or /api/strategies/x/stats (no live_game)
   document.getElementById('lt-games').textContent  = snap.games_played;
   document.getElementById('lt-wr').textContent     = snap.win_rate?.toFixed(1) + '%';
   document.getElementById('lt-wins').textContent   = snap.wins;

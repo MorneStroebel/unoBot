@@ -11,17 +11,18 @@ class SocketListener:
     """Handles Socket.io connection and in-game events."""
 
     def __init__(self, room_id, player_id, strategy, stats_tracker=None, room_manager=None):
-        self.room_id       = room_id
-        self.player_id     = player_id
-        self.strategy      = strategy
-        self.stats_tracker = stats_tracker
-        self.room_manager  = room_manager
-        self.strategy_name = self._class_to_strategy_name(strategy.__class__.__name__)
-        self.engine        = Engine(room_id, player_id, strategy, stats_tracker)
-        self.sio           = socketio.Client(reconnection=True, reconnection_attempts=5)
-        self.game_started  = False
-        self.game_ended    = False
-        self._players      = {}   # id → name, populated from turn events
+        self.room_id        = room_id
+        self.player_id      = player_id
+        self.strategy       = strategy
+        self.stats_tracker  = stats_tracker
+        self.room_manager   = room_manager
+        self.strategy_name  = self._class_to_strategy_name(strategy.__class__.__name__)
+        self.engine         = Engine(room_id, player_id, strategy, stats_tracker)
+        self.sio            = socketio.Client(reconnection=True, reconnection_attempts=5)
+        self.game_started   = False   # True once stats tracking begun for this game
+        self.game_ended     = False
+        self._is_reconnect  = False   # True after the first connect fires
+        self._players       = {}      # id → name
         self._setup_handlers()
 
     # ── Helpers ───────────────────────────────────────────────────────────────
@@ -30,26 +31,30 @@ class SocketListener:
     def _class_to_strategy_name(class_name: str) -> str:
         import re
         name = re.sub(r'(?<!^)(?=[A-Z])', '_', class_name).lower()
-        for suffix in ("_strategy",):
-            if name.endswith(suffix):
-                name = name[: -len(suffix)]
+        if name.endswith("_strategy"):
+            name = name[:-9]
         return name
 
     def _ensure_game_started(self):
-        if not self.game_started and self.stats_tracker:
+        """Start stats tracking exactly once per game — ignore reconnect signals."""
+        if self.game_started:
+            return
+        if self._is_reconnect:
+            # We reconnected mid-game; don't start a new stats session
+            print("🔄 Reconnected mid-game — stats session continuing", flush=True)
+            self.game_started = True   # suppress future calls but don't reset stats
+            return
+        if self.stats_tracker:
             self.stats_tracker.start_game(self.room_id, self.player_id, self.strategy_name)
-            self.game_started = True
+        self.game_started = True
 
     @staticmethod
     def _card_str(card):
-        """Return a readable string for a card dict or None."""
         if not card:
             return "?"
         color = card.get("color", "")
         value = card.get("value", card.get("type", "?"))
-        if color:
-            return f"{color} {value}"
-        return str(value)
+        return f"{color} {value}" if color else str(value)
 
     # ── Event setup ───────────────────────────────────────────────────────────
 
@@ -63,6 +68,8 @@ class SocketListener:
                 "playerId": self.player_id,
             })
             print(f"🚪 Joined room {self.room_id}", flush=True)
+            # Mark subsequent connects as reconnects so we don't double-count games
+            self._is_reconnect = True
 
         @self.sio.on("disconnect")
         def on_disconnect():
@@ -73,9 +80,8 @@ class SocketListener:
             if DEBUG_MODE:
                 print(f"[DEBUG] turn: {data}", flush=True)
 
-            # Track player names from turn data
             for p in data.get("players", []):
-                pid = p.get("id")
+                pid   = p.get("id")
                 pname = p.get("name") or p.get("playerName")
                 if pid and pname:
                     self._players[pid] = pname
@@ -147,15 +153,13 @@ class SocketListener:
                 print(f"[DEBUG] gameStart: {data}", flush=True)
             players = data.get("players", [])
             names   = [p.get("name", p.get("playerName", "?")) for p in players]
-            # Populate player name map
             for p in players:
-                pid = p.get("id")
+                pid   = p.get("id")
                 pname = p.get("name") or p.get("playerName")
                 if pid and pname:
                     self._players[pid] = pname
             print(f"🃏 GAME STARTED  │  Players: {', '.join(names)}", flush=True)
             self._ensure_game_started()
-            # Notify strategy
             try:
                 self.strategy.on_game_start()
             except Exception:
@@ -166,7 +170,8 @@ class SocketListener:
             seconds = data.get("seconds", 0)
             message = data.get("message", "Starting in")
             print(f"⏰ {message} {seconds}s…", flush=True)
-            self._ensure_game_started()
+            # Do NOT call _ensure_game_started here — countdown fires before the
+            # game actually begins and can be cancelled; gameStart is authoritative.
 
         @self.sio.on("countdownCancel")
         def on_countdown_cancel(data):
@@ -204,17 +209,20 @@ class SocketListener:
             if won:
                 print(f"🏆 WE WON!  │  Score: {score} pts  │  Reason: {reason}", flush=True)
             else:
-                print(f"😔 Game over  │  {medal} {placement}{'st' if placement==1 else 'nd' if placement==2 else 'rd' if placement==3 else 'th'} place  │  Winner: {winner_name}", flush=True)
+                suffix = {1:"st",2:"nd",3:"rd"}.get(placement,"th")
+                print(f"😔 Game over  │  {medal} {placement}{suffix} place  │  Winner: {winner_name}", flush=True)
 
-            self._ensure_game_started()
-            if self.stats_tracker:
-                self.stats_tracker.end_game(won, placement, score if won else 0)
-
-            # Notify strategy
+            # Notify strategy lifecycle hook FIRST (before end_game clears live_state.json)
+            # This lets base_strategy._persist_stats see live_state.json still exists
+            # and skip the legacy record_game() call → prevents double counting.
             try:
                 self.strategy.on_game_end(won, placement, score if won else 0)
             except Exception:
                 pass
+
+            # Now commit stats and delete live_state.json (single write per game)
+            if self.game_started and self.stats_tracker:
+                self.stats_tracker.end_game(won, placement, score if won else 0)
 
             self.game_started = False
             self.game_ended   = True
@@ -222,6 +230,8 @@ class SocketListener:
     # ── Public interface ──────────────────────────────────────────────────────
 
     def connect(self):
+        # Reset reconnect flag so the very first connect is treated as fresh
+        self._is_reconnect = False
         print(f"🔌 Connecting to game server…", flush=True)
         self.sio.connect(SOCKET_URL)
 

@@ -103,14 +103,23 @@ class BaseStrategy:
     # ------------------------------------------------------------------
 
     def _persist_stats(self, won: bool, placement: int, points: int):
+        """Fallback stats save — only runs when no external stats_tracker is active.
+        When running via the UI/bot, SocketListener calls stats_tracker.end_game()
+        directly, which already persists everything. We guard against double-counting
+        by checking for the live_state.json sentinel written by start_game().
+        """
         try:
-            from strategies.stats import StrategyStats
+            import os
             strategy_name = self._get_strategy_folder_name()
+            strategies_dir = os.path.dirname(os.path.abspath(__file__))
+            live_path = os.path.join(strategies_dir, strategy_name, "live_state.json")
+            # live_state.json exists while stats_tracker is managing this game session
+            if os.path.exists(live_path):
+                return  # stats_tracker.end_game() will handle it — don't double-count
+            from strategies.stats import StrategyStats
             tracker = StrategyStats(strategy_name)
             tracker.record_game(
-                won=won,
-                placement=placement,
-                points=points,
+                won=won, placement=placement, points=points,
                 cards_played=self._session_cards_played,
                 cards_drawn=self._session_cards_drawn,
                 uno_calls=self._session_uno_calls,
@@ -119,7 +128,7 @@ class BaseStrategy:
                 wild_color_choices=dict(self._session_wild_colors),
             )
         except Exception as e:
-            print(f"⚠️  Could not save stats: {e}")
+            print(f"⚠️  Could not save stats: {e}", flush=True)
 
     def _get_strategy_folder_name(self) -> str:
         module = self.__class__.__module__

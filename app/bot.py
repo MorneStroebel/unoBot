@@ -28,11 +28,13 @@ def _check_paused():
     if not _UI_MODE:
         return
     if os.path.exists(_PAUSE_FILE):
-        print("⏸ Bot paused by UI — waiting to resume...")
+        print("⏸ Bot paused by UI — waiting to resume...", flush=True)
+
         while os.path.exists(_PAUSE_FILE) and not should_exit:
             import time; time.sleep(1)
         if not should_exit:
-            print("▶ Bot resumed — rejoining game loop.")
+            print("▶ Bot resumed — rejoining game loop.", flush=True)
+
 
 
 def _read_launch_hint() -> dict:
@@ -70,25 +72,30 @@ def cleanup_and_exit():
             return
         already_exiting = True
 
-    print("\n\n🛑 Shutting down bot gracefully...")
+    print("\n\n🛑 Shutting down bot gracefully...", flush=True)
+
 
     if room_manager:
         try:
             if room_manager.current_room_id and room_manager.current_player_id:
-                print("🚪 Leaving room...")
+                print("🚪 Leaving room...", flush=True)
+
                 room_manager.leave_current_room()
         except Exception as e:
             if DEBUG_MODE:
-                print(f"⚠️ Error leaving room: {e}")
+                print(f"⚠️ Error leaving room: {e}", flush=True)
+
 
     if listener:
         try:
             listener.disconnect()
         except Exception as e:
             if DEBUG_MODE:
-                print(f"⚠️ Error disconnecting: {e}")
+                print(f"⚠️ Error disconnecting: {e}", flush=True)
 
-    print("\n👋 UnoBot shut down.")
+
+    print("\n👋 UnoBot shut down.", flush=True)
+
 
 
 # ── Signal handling ────────────────────────────────────────────────────────────
@@ -97,7 +104,8 @@ def handle_exit(sig, frame):
     if should_exit:
         return
     should_exit = True
-    print("\n🛑 Exit signal received")
+    print("\n🛑 Exit signal received", flush=True)
+
     if listener:
         try:
             listener.disconnect()
@@ -130,7 +138,8 @@ def start_bot():
             target_players = hint.get("target_players") or []
             auto_rejoin   = hint.get("auto_rejoin", AUTO_REJOIN)
             rejoin_delay  = hint.get("rejoin_delay", REJOIN_DELAY)
-            print(f"🖥  UI mode — strategy={strategy_name}  room_mode={mode}")
+            print(f"🖥  UI mode — strategy={strategy_name}  room_mode={mode}", flush=True)
+
         else:
             strategy_name  = ACTIVE_STRATEGY
             room_cfg       = _prompt_room_mode()
@@ -140,18 +149,23 @@ def start_bot():
             auto_rejoin    = AUTO_REJOIN
             rejoin_delay   = REJOIN_DELAY
 
-        print(f"🧠 Loading strategy: {strategy_name}")
+        print(f"🧠 Loading strategy: {strategy_name}", flush=True)
+
         strategy = load_strategy(strategy_name)
         current_strategy_name = strategy_name
-        print(f"✅ Strategy loaded: {strategy.__class__.__name__}\n")
+        print(f"✅ Strategy loaded: {strategy.__class__.__name__}\n", flush=True)
+
 
         game_count = 0
 
         while not should_exit:
             game_count += 1
-            print(f"\n{'=' * 60}")
-            print(f"🎮 GAME SESSION #{game_count}")
-            print(f"{'=' * 60}\n")
+            print(f"\n{'=' * 60}", flush=True)
+
+            print(f"🎮 GAME SESSION #{game_count}", flush=True)
+
+            print(f"{'=' * 60}\n", flush=True)
+
 
             # ── Join room ──────────────────────────────────────────────────
             if game_count == 1:
@@ -183,7 +197,8 @@ def start_bot():
                     room_id, player_id = room_manager.rejoin_room(delay=rejoin_delay)
                 elif _UI_MODE:
                     # In UI mode without auto-rejoin, stop after one game
-                    print("🏁 Auto-rejoin disabled — stopping after game.")
+                    print("🏁 Auto-rejoin disabled — stopping after game.", flush=True)
+
                     break
                 else:
                     from app.prompts import (
@@ -193,7 +208,8 @@ def start_bot():
                     action = prompt_post_game_action()
 
                     if action == "leave":
-                        print("\n🚪 Leaving room...")
+                        print("\n🚪 Leaving room...", flush=True)
+
                         room_manager.leave_current_room()
                         break
 
@@ -213,25 +229,31 @@ def start_bot():
                     room_id, player_id = room_manager.rejoin_room(delay=2)
 
             if not room_id or not player_id:
-                print("\n❌ Failed to join room.")
+                print("\n❌ Failed to join room.", flush=True)
+
                 break
 
             save_state(room_id, player_id)
-            print(f"\n✅ Connected to room: {room_id}")
-            print(f"   Strategy: {current_strategy_name}")
+            print(f"\n✅ Connected to room: {room_id}", flush=True)
+
+            print(f"   Strategy: {current_strategy_name}", flush=True)
+
 
             listener = SocketListener(room_id, player_id, strategy)
             listener.connect()
 
-            print("\n🤖 Bot active — waiting for game events")
+            print("\n🤖 Bot active — waiting for game events", flush=True)
+
             if not _UI_MODE:
-                print("   Press Ctrl+C to exit\n")
+                print("   Press Ctrl+C to exit\n", flush=True)
+
 
             try:
                 listener.wait()
             except Exception as e:
                 if not should_exit:
-                    print(f"\n⚠️ Listener error: {e}")
+                    print(f"\n⚠️ Listener error: {e}", flush=True)
+
 
             if listener:
                 try:
@@ -241,12 +263,15 @@ def start_bot():
                 listener = None
 
             if not should_exit and auto_rejoin:
-                print("\n⏳ Rejoining shortly...\n")
+                print("\n⏳ Rejoining shortly...\n", flush=True)
 
-        print("\n🏁 SESSION COMPLETE\n")
+
+        print("\n🏁 SESSION COMPLETE\n", flush=True)
+
 
     except Exception as e:
-        print(f"\n❌ Fatal error: {e}")
+        print(f"\n❌ Fatal error: {e}", flush=True)
+
         if DEBUG_MODE:
             import traceback
             traceback.print_exc()

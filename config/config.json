@@ -2,8 +2,10 @@
   "active_strategy": "adaptive_bot",
   "strategies": {
     "adaptive_bot": {
-      "bot_first_name": "WorldClass",
-      "bot_last_name": "UnoBot"
+      "bot_first_name": "Test",
+      "bot_last_name": "Bot"
     }
-  }
+  },
+  "bot_first_name": "Global",
+  "bot_last_name": "Default"
 }

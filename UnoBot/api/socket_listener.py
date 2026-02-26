@@ -89,8 +89,6 @@ class SocketListener:
                 top_str       = self._card_str(top_card)
                 color_str     = f" [{current_color}]" if current_color else ""
                 print(f"🎮 MY TURN  │  Hand: {len(hand)} cards  │  Top: {top_str}{color_str}", flush=True)
-                if self.stats_tracker:
-                    self.stats_tracker.record_hand_size(len(hand))
                 self.engine.take_turn(hand, top_card, current_color)
             else:
                 pname      = data.get("playerName") or self._players.get(current_player_id, "?")

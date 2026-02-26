@@ -259,27 +259,6 @@ def api_room_join():
 
 # ── Strategies ────────────────────────────────────────────────────────────────
 
-@app.route("/api/room/create", methods=["POST"])
-def api_room_create():
-    """Create a new PvP room and join it as the host."""
-    try:
-        from api.client import post as api_post
-        from api.actions import join_room
-        from config.settings import IS_SANDBOX_MODE
-        resp = api_post("/rooms", {"isSandbox": IS_SANDBOX_MODE})
-        room_id = resp.json().get("roomId")
-        if not room_id:
-            return jsonify({"ok": False, "error": "Server did not return a room ID"}), 500
-        player_id = join_room(room_id, only_players=True)
-        if not player_id:
-            return jsonify({"ok": False, "error": "Could not join the created room"}), 500
-        _append_log(f"🏠 Created PvP room {room_id}")
-        return jsonify({"ok": True, "room_id": room_id, "player_id": player_id})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
-
-
-
 @app.route("/api/strategies")
 def api_strategies():
     discovered = list_strategies()
@@ -317,23 +296,17 @@ def api_strategy_config_patch(n):
     data = request.get_json(silent=True) or {}
     cfg  = _load_cfg()
     cfg.setdefault("strategies", {}).setdefault(n, {})
-    # Allow identity overrides + behavioural overrides
-    ALLOWED = {
-        "bot_first_name", "bot_last_name", "player_name", "mac_address",
-        "only_players_mode", "auto_rejoin", "rejoin_delay",
-        "require_target_players", "is_sandbox_mode", "debug_mode",
-    }
+    ALLOWED = {"bot_first_name", "bot_last_name", "player_name", "mac_address"}
     for k, v in data.items():
         if k in ALLOWED:
-            # Empty strings → delete key (falls back to global)
-            if v == "" or v is None:
-                cfg["strategies"][n].pop(k, None)
-            else:
+            if v:
                 cfg["strategies"][n][k] = v
+            elif k in cfg["strategies"][n]:
+                del cfg["strategies"][n][k]
     if not cfg["strategies"].get(n):
         cfg["strategies"].pop(n, None)
     _save_cfg(cfg)
-    _append_log(f"💾 Override config saved: {n}")
+    _append_log(f"💾 Config updated for: {n}")
     return jsonify({"ok": True, "config": cfg.get("strategies", {}).get(n, {})})
 
 
@@ -347,25 +320,6 @@ def api_strategy_stats_reset(n):
     StrategyStats(n).reset()
     _append_log(f"🗑 Stats reset: {n}")
     return jsonify({"ok": True})
-
-
-@app.route("/api/strategies/<n>/live")
-def api_strategy_live(n):
-    """Return live snapshot — persisted totals merged with current in-game accumulator.
-    Safe to poll every second; no disk I/O on read."""
-    return jsonify(StrategyStats(n).live_snapshot())
-
-
-@app.route("/api/live")
-def api_live_any():
-    """Return live snapshot for the currently active strategy (from config)."""
-    cfg = _load_cfg()
-    active = cfg.get("active_strategy")
-    if not active:
-        return jsonify({"error": "No active strategy"}), 404
-    snap = StrategyStats(active).live_snapshot()
-    snap["strategy_id"] = active
-    return jsonify(snap)
 
 
 @app.route("/api/strategies/upload", methods=["POST"])

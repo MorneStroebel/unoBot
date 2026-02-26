@@ -1,1 +1,1 @@
-{"mode": "auto", "strategy": "adaptive_bot", "target_players": [], "auto_rejoin": true}
+{"mode": "auto", "strategy": "gpt_base_bot", "target_players": [], "auto_rejoin": true}

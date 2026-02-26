@@ -229,6 +229,97 @@ select option{background:var(--surf2)}
 .help-text{font-size:12px;color:var(--muted);margin-top:5px;line-height:1.5}
 .target-hint{display:none;margin-top:12px}
 .target-hint.show{display:block}
+
+/* ─── Play mode cards ─── */
+.play-card{background:var(--surf);border:2px solid var(--border);border-radius:12px;padding:24px;display:flex;flex-direction:column;gap:10px;transition:border-color .2s,transform .15s;cursor:default;position:relative;overflow:hidden}
+.play-card::before{content:'';position:absolute;inset:0;opacity:0;transition:opacity .2s;pointer-events:none}
+.play-card:hover{transform:translateY(-2px)}
+.play-card-icon{font-size:36px;line-height:1}
+.play-card-title{font-family:var(--display);font-size:24px;letter-spacing:1.5px}
+.play-card-desc{font-size:13px;color:var(--muted2);line-height:1.6;flex:1}
+.play-card-badge{display:inline-flex;align-items:center;font-family:var(--mono);font-size:10px;letter-spacing:1px;padding:3px 9px;border-radius:12px;width:fit-content}
+.play-card-btn{width:100%;margin-top:4px}
+.badge-green{background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.25)}
+.badge-blue{background:rgba(59,130,246,.12);color:var(--blue);border:1px solid rgba(59,130,246,.25)}
+.badge-yellow{background:rgba(240,180,41,.12);color:var(--yellow);border:1px solid rgba(240,180,41,.25)}
+/* Active play card highlight */
+.play-card.running-auto{border-color:var(--green)}
+.play-card.running-auto::before{background:radial-gradient(ellipse at 0 0,rgba(34,197,94,.07),transparent 60%);opacity:1}
+.play-card.running-wait{border-color:var(--blue)}
+.play-card.running-wait::before{background:radial-gradient(ellipse at 0 0,rgba(59,130,246,.07),transparent 60%);opacity:1}
+.play-card.running-pvp{border-color:var(--yellow)}
+.play-card.running-pvp::before{background:radial-gradient(ellipse at 0 0,rgba(240,180,41,.07),transparent 60%);opacity:1}
+/* PvP sub-options */
+.pvp-option{background:var(--surf2);border:1px solid var(--border2);border-radius:8px;padding:14px 16px;cursor:pointer;transition:border-color .15s}
+.pvp-option:hover{border-color:var(--border)}
+.pvp-option.sel{border-color:var(--yellow);background:rgba(240,180,41,.06)}
+.pvp-option-title{font-weight:600;font-size:13px;margin-bottom:3px}
+.pvp-option-desc{font-size:12px;color:var(--muted);line-height:1.5}
+
+    /* ── Strategy Guide Modal ─────────────────────────── */
+    .guide-tab {
+      padding: 8px 16px;
+      font-family: var(--mono);
+      font-size: 11px;
+      background: none;
+      border: none;
+      border-bottom: 2px solid transparent;
+      color: var(--muted);
+      cursor: pointer;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transition: color .15s, border-color .15s;
+    }
+    .guide-tab:hover { color: var(--fg); }
+    .guide-tab.active { color: var(--blue); border-bottom-color: var(--blue); }
+    .guide-panel { display: block; }
+    .guide-panel.hidden { display: none; }
+    .guide-section {
+      font-family: var(--mono);
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: var(--muted);
+      margin: 18px 0 6px;
+    }
+    .guide-code {
+      background: var(--surf2);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px 14px;
+      font-family: var(--mono);
+      font-size: 11.5px;
+      line-height: 1.65;
+      color: var(--fg);
+      white-space: pre;
+      overflow-x: auto;
+      margin: 0;
+    }
+    .guide-p {
+      font-size: 13px;
+      color: var(--muted);
+      line-height: 1.6;
+      margin: 0 0 4px;
+    }
+    .ic {
+      font-family: var(--mono);
+      font-size: 11px;
+      background: var(--surf2);
+      border: 1px solid var(--border);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--blue);
+    }
+
+    /* ── Stats graphs ───────────────────────────────── */
+    .sparkline-wrap { position:relative;height:72px;margin:8px 0 0; }
+    .sparkline-canvas { width:100%;height:72px;display:block; }
+    .graph-legend {
+      display:flex;gap:12px;margin-top:6px;
+      font-family:var(--mono);font-size:10px;color:var(--muted);
+    }
+    .graph-legend span::before { content:'■ ';font-size:9px; }
+    .trend-card { margin-top:16px; }
 </style>
 </head>
 <body>
@@ -284,7 +375,7 @@ select option{background:var(--surf2)}
     <div class="page active" id="page-control">
       <div class="page-title">BOT CONTROL</div>
 
-      <!-- Hero status bar -->
+      <!-- Status bar -->
       <div class="hero">
         <div class="hero-ring stopped" id="big-ring">🔴</div>
         <div class="hero-info">
@@ -294,10 +385,9 @@ select option{background:var(--surf2)}
           <div class="info-box"><div class="info-lbl">Uptime</div><div class="info-val g" id="h-uptime">—</div></div>
         </div>
         <div class="hero-btns">
-          <button class="btn btn-green"        id="btn-start"  onclick="startBot()">▶ START</button>
-          <button class="btn btn-yellow"        id="btn-pause"  onclick="pauseBot()"  disabled>⏸ PAUSE</button>
-          <button class="btn btn-yellow-solid"  id="btn-resume" onclick="resumeBot()" style="display:none">▶ RESUME</button>
-          <button class="btn btn-red"           id="btn-stop"   onclick="confirmStop()" disabled>■ STOP</button>
+          <button class="btn btn-yellow"       id="btn-pause"  onclick="pauseBot()"   disabled style="display:none">⏸ PAUSE</button>
+          <button class="btn btn-yellow-solid" id="btn-resume" onclick="resumeBot()"  style="display:none">▶ RESUME</button>
+          <button class="btn btn-red"          id="btn-stop"   onclick="confirmStop()" disabled>■ STOP</button>
         </div>
       </div>
 
@@ -306,70 +396,76 @@ select option{background:var(--surf2)}
         <span style="font-size:20px">⏸</span>
         <div style="flex:1">
           <div style="color:var(--yellow);font-family:var(--mono);font-size:12px;font-weight:600;letter-spacing:1px">BOT PAUSED</div>
-          <div style="color:var(--muted);font-size:12px;margin-top:2px">Will finish current game, then hold here until resumed.</div>
+          <div style="color:var(--muted);font-size:12px;margin-top:2px">Will finish current game then wait here until resumed.</div>
         </div>
         <button class="btn btn-yellow-solid btn-sm" onclick="resumeBot()">▶ Resume</button>
       </div>
 
-      <!-- Room controls (leave / rejoin) -->
+      <!-- Room info bar — shown when in a room -->
       <div class="card" id="room-card" style="display:none">
-        <div class="card-title">ROOM ACTIONS</div>
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
-          <div style="flex:1;min-width:180px">
-            <div style="font-family:var(--mono);font-size:11px;color:var(--muted)">Currently in room</div>
-            <div style="font-family:var(--mono);font-size:13px;color:var(--green);margin-top:3px;word-break:break-all" id="room-id-display">—</div>
+          <div style="font-size:20px">🟢</div>
+          <div style="flex:1;min-width:0">
+            <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">In Room</div>
+            <div style="font-family:var(--mono);font-size:12px;color:var(--green);margin-top:2px;word-break:break-all" id="room-id-display">—</div>
           </div>
-          <button class="btn btn-red btn-sm" onclick="leaveRoom()">🚪 Leave Room</button>
+          <button class="btn btn-red btn-sm" id="btn-leave" onclick="leaveRoom()">🚪 Leave Room</button>
         </div>
       </div>
 
-      <!-- Launch config -->
+      <!-- Strategy picker (compact, always visible) -->
       <div class="card">
-        <div class="card-title">LAUNCH OPTIONS</div>
-
-        <div class="field">
-          <span class="flbl">Strategy</span>
-          <select id="launch-strat">
-            <option value="">— Use active strategy —</option>
-          </select>
-        </div>
-
-        <div class="field">
-          <span class="flbl">Room Mode</span>
-          <div class="mode-grid">
-            <div class="mode-btn sel" data-mode="auto" onclick="selMode('auto',this)">
-              <div class="mode-icon">🚀</div>
-              <div class="mode-name">Auto</div>
-              <div class="mode-desc">Join or create any room</div>
-            </div>
-            <div class="mode-btn" data-mode="wait" onclick="selMode('wait',this)">
-              <div class="mode-icon">⏳</div>
-              <div class="mode-name">Wait</div>
-              <div class="mode-desc">Wait for an open room</div>
-            </div>
-            <div class="mode-btn" data-mode="target" onclick="selMode('target',this)">
-              <div class="mode-icon">🎯</div>
-              <div class="mode-name">Find Player</div>
-              <div class="mode-desc">Join a friend's room</div>
-            </div>
+        <div class="card-title" style="margin-bottom:12px">STRATEGY</div>
+        <div style="display:flex;gap:10px;align-items:flex-end">
+          <div style="flex:1">
+            <select id="launch-strat">
+              <option value="">— Use active strategy —</option>
+            </select>
           </div>
+          <button class="btn btn-ghost btn-sm" onclick="navTo('strategies', document.querySelector('[data-page=strategies]'))">Manage</button>
         </div>
-
-        <!-- Target player input — only shown in target mode -->
-        <div class="target-hint" id="target-hint">
-          <div class="field">
-            <span class="flbl">Player Name(s) <span style="color:var(--muted);font-weight:400">— press Enter or comma after each name</span></span>
-            <input type="text" id="target-input" placeholder="Type a player name and press Enter…"
-              onkeydown="targetKey(event)" oninput="targetComma(event)">
-            <div class="tag-list" id="tag-list"></div>
-          </div>
-          <p id="target-warn" style="display:none;font-family:var(--mono);font-size:11px;color:var(--red);margin-bottom:10px">
-            ⚠ Add at least one player name before starting.
-          </p>
-        </div>
-
-        <button class="btn btn-green" style="width:100%;margin-top:4px" id="btn-start2" onclick="startBot()">▶ START BOT</button>
       </div>
+
+      <!-- The three big play mode cards -->
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:2px;margin-bottom:12px">Choose How to Play</div>
+
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:14px;margin-bottom:8px">
+
+        <!-- ── CARD 1: Auto Grind ── -->
+        <div class="play-card" id="pc-auto">
+          <div class="play-card-icon">🚀</div>
+          <div class="play-card-title">Auto Grind</div>
+          <div class="play-card-desc">Creates a new room each time. Bot keeps playing game after game automatically until you press Stop.</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
+            <div class="play-card-badge badge-green">♾ Continuous</div>
+            <div class="play-card-badge" id="auto-sandbox-badge" style="display:none;background:rgba(230,57,70,.12);color:var(--red);border:1px solid rgba(230,57,70,.3)">⚠ Sandbox only</div>
+          </div>
+          <div id="auto-sandbox-warn" style="display:none;font-family:var(--mono);font-size:10px;color:var(--red);line-height:1.5">
+            Creating rooms requires Sandbox Mode. Enable it in Bot Identity settings.
+          </div>
+          <button class="btn btn-green play-card-btn" id="btn-auto" onclick="startMode('auto')">▶ Start Grinding</button>
+        </div>
+
+        <!-- ── CARD 2: Wait for Room ── -->
+        <div class="play-card" id="pc-wait">
+          <div class="play-card-icon">⏳</div>
+          <div class="play-card-title">Wait for Room</div>
+          <div class="play-card-desc">Bot waits for an open room to join. When a game ends it waits for the next one automatically until you press Stop.</div>
+          <div class="play-card-badge badge-blue">♾ Continuous</div>
+          <button class="btn btn-blue play-card-btn" id="btn-wait" onclick="startMode('wait')">▶ Start Waiting</button>
+        </div>
+
+        <!-- ── CARD 3: Play with Friends ── -->
+        <div class="play-card" id="pc-pvp">
+          <div class="play-card-icon">🎯</div>
+          <div class="play-card-title">Play with Friends</div>
+          <div class="play-card-desc">Join a specific player's room, or create a new room so friends can join you. Bot stops after the game finishes.</div>
+          <div class="play-card-badge badge-yellow">1 Game</div>
+          <button class="btn btn-yellow-solid play-card-btn" id="btn-pvp" onclick="openPvpModal()">▶ Set Up Game</button>
+        </div>
+
+      </div>
+
     </div>
 
     <!-- ══════════════════════════════ LIVE ACTION ════ -->
@@ -397,17 +493,48 @@ select option{background:var(--surf2)}
         </div>
       </div>
 
-      <!-- Quick stats row -->
-      <div class="card">
-        <div class="card-title">CURRENT SESSION</div>
-        <div class="stat-grid">
-          <div class="stat-box"><div class="stat-lbl">Games</div><div class="stat-val" id="sess-games">0</div></div>
-          <div class="stat-box"><div class="stat-lbl">Wins</div><div class="stat-val g" id="sess-wins">0</div></div>
-          <div class="stat-box"><div class="stat-lbl">Losses</div><div class="stat-val r" id="sess-losses">0</div></div>
-          <div class="stat-box"><div class="stat-lbl">Cards Played</div><div class="stat-val b" id="sess-cards">0</div></div>
-          <div class="stat-box"><div class="stat-lbl">UNO Calls</div><div class="stat-val y" id="sess-uno">0</div></div>
-          <div class="stat-box"><div class="stat-lbl">Penalties</div><div class="stat-val r" id="sess-pen">0</div></div>
+      <!-- Live game ticker (current game, memory only) -->
+      <div class="card" id="live-game-card">
+        <div class="card-title">
+          <div style="display:flex;align-items:center;gap:10px">
+            <div class="dot stopped" id="live-dot"></div>
+            <span>LIVE GAME</span>
+            <span id="live-strategy-badge" style="font-family:var(--mono);font-size:10px;color:var(--muted);font-weight:400"></span>
+          </div>
+          <div id="live-timer" style="font-family:var(--mono);font-size:12px;color:var(--muted)"></div>
         </div>
+        <!-- In-game real-time stats (memory, not saved yet) -->
+        <div class="stat-grid" style="margin-bottom:14px">
+          <div class="stat-box" style="border-color:rgba(34,197,94,.2)"><div class="stat-lbl">Hand Size</div><div class="stat-val g" id="live-hand">—</div></div>
+          <div class="stat-box" style="border-color:rgba(59,130,246,.2)"><div class="stat-lbl">Cards Played</div><div class="stat-val b" id="live-cards-p">0</div></div>
+          <div class="stat-box" style="border-color:rgba(148,163,184,.15)"><div class="stat-lbl">Cards Drawn</div><div class="stat-val" id="live-cards-d">0</div></div>
+          <div class="stat-box" style="border-color:rgba(240,180,41,.2)"><div class="stat-lbl">UNO Calls</div><div class="stat-val y" id="live-uno">0</div></div>
+          <div class="stat-box" style="border-color:rgba(230,57,70,.2)"><div class="stat-lbl">Penalties</div><div class="stat-val r" id="live-pen">0</div></div>
+          <div class="stat-box"><div class="stat-lbl">Turns</div><div class="stat-val" id="live-turns">0</div></div>
+        </div>
+        <div id="live-inactive" style="text-align:center;padding:10px 0;font-family:var(--mono);font-size:11px;color:var(--muted)">
+          ⚪ No active game — start the bot to see live stats
+        </div>
+      </div>
+
+      <!-- Lifetime stats for active strategy (always visible) -->
+      <div class="card">
+        <div class="card-title">
+          LIFETIME STATS
+          <span id="live-lifetime-strat" style="font-family:var(--mono);font-size:10px;font-weight:400;color:var(--muted)"></span>
+        </div>
+        <div class="stat-grid">
+          <div class="stat-box"><div class="stat-lbl">Games</div><div class="stat-val" id="lt-games">0</div></div>
+          <div class="stat-box"><div class="stat-lbl">Win Rate</div><div class="stat-val g" id="lt-wr">0%</div></div>
+          <div class="stat-box"><div class="stat-lbl">Wins</div><div class="stat-val g" id="lt-wins">0</div></div>
+          <div class="stat-box"><div class="stat-lbl">Losses</div><div class="stat-val r" id="lt-losses">0</div></div>
+          <div class="stat-box"><div class="stat-lbl">Cards Played</div><div class="stat-val b" id="lt-cards">0</div></div>
+          <div class="stat-box"><div class="stat-lbl">UNO Calls</div><div class="stat-val y" id="lt-uno">0</div></div>
+          <div class="stat-box"><div class="stat-lbl">Penalties</div><div class="stat-val r" id="lt-pen">0</div></div>
+          <div class="stat-box"><div class="stat-lbl">Avg Points</div><div class="stat-val" id="lt-avg">0</div></div>
+        </div>
+        <!-- Placement bar chart -->
+        <div id="lt-placements" style="margin-top:4px"></div>
       </div>
     </div>
 
@@ -417,6 +544,7 @@ select option{background:var(--surf2)}
         <div class="page-title" style="margin:0">STRATEGIES</div>
         <div style="display:flex;gap:8px">
           <button class="btn btn-ghost btn-sm" onclick="loadStrats()">↺ Refresh</button>
+          <button class="btn btn-ghost btn-sm" onclick="openModal('modal-guide')">📖 Dev Guide</button>
           <button class="btn btn-blue btn-sm" onclick="openUploadModal()">📦 Upload Strategy</button>
         </div>
       </div>
@@ -446,39 +574,54 @@ select option{background:var(--surf2)}
     <div class="page" id="page-config">
       <div class="page-title">BOT IDENTITY</div>
 
+      <!-- Active strategy selector -->
+      <div class="card">
+        <div class="card-title">Default Strategy <span style="font-family:var(--mono);font-size:11px;font-weight:400;color:var(--muted)">used when bot starts without an explicit choice</span></div>
+        <div style="display:flex;gap:10px;align-items:flex-end">
+          <div style="flex:1">
+            <span class="flbl">Active Strategy</span>
+            <select id="g-active-strat" onchange="saveActiveStrategy()">
+              <option value="">Loading…</option>
+            </select>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="navTo('strategies', document.querySelector('[data-page=strategies]'))">Manage →</button>
+        </div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:8px">Saves immediately when you change the selection.</div>
+      </div>
+
       <div class="card">
         <div class="card-title">Default Identity <span style="font-family:var(--mono);font-size:11px;font-weight:400;color:var(--muted)">used when strategy has no override</span></div>
         <div class="row2">
-          <div class="field"><span class="flbl">First Name</span><input type="text" id="g-first" placeholder="WorldClass"></div>
-          <div class="field"><span class="flbl">Last Name</span><input type="text" id="g-last" placeholder="UnoBot"></div>
+          <div class="field"><span class="flbl">First Name</span><input type="text" id="g-first" placeholder="WorldClass" onblur="saveIdentityField()"></div>
+          <div class="field"><span class="flbl">Last Name</span><input type="text" id="g-last" placeholder="UnoBot" onblur="saveIdentityField()"></div>
         </div>
-        <div class="field"><span class="flbl">Player / Display Name</span><input type="text" id="g-player" placeholder="HoerBoer"></div>
-        <button class="btn btn-green" onclick="saveIdentity()">💾 Save Identity</button>
+        <div class="field"><span class="flbl">Player / Display Name</span><input type="text" id="g-player" placeholder="HoerBoer" onblur="saveIdentityField()"></div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:-6px">Changes save automatically when you click away from a field.</div>
       </div>
 
       <div class="card">
         <div class="card-title">Behaviour</div>
         <div class="toggle-row">
           <div class="toggle-info"><div class="tlbl">Sandbox Mode</div><div class="tsub">Play against bots only, no real opponents</div></div>
-          <label class="tog"><input type="checkbox" id="g-sandbox"><span class="tog-track"></span></label>
+          <label class="tog"><input type="checkbox" id="g-sandbox" onchange="saveBehaviourField()"><span class="tog-track"></span></label>
         </div>
         <div class="toggle-row">
           <div class="toggle-info"><div class="tlbl">Auto Rejoin</div><div class="tsub">Automatically rejoin after each game ends</div></div>
-          <label class="tog"><input type="checkbox" id="g-rejoin" checked><span class="tog-track"></span></label>
+          <label class="tog"><input type="checkbox" id="g-rejoin" checked onchange="saveBehaviourField()"><span class="tog-track"></span></label>
         </div>
         <div class="toggle-row">
           <div class="toggle-info"><div class="tlbl">Only Human Players</div><div class="tsub">Only join rooms that have real players</div></div>
-          <label class="tog"><input type="checkbox" id="g-only"><span class="tog-track"></span></label>
+          <label class="tog"><input type="checkbox" id="g-only" onchange="saveBehaviourField()"><span class="tog-track"></span></label>
         </div>
         <div class="toggle-row">
           <div class="toggle-info"><div class="tlbl">Debug Mode</div><div class="tsub">Verbose output in the raw log</div></div>
-          <label class="tog"><input type="checkbox" id="g-debug"><span class="tog-track"></span></label>
+          <label class="tog"><input type="checkbox" id="g-debug" onchange="saveBehaviourField()"><span class="tog-track"></span></label>
         </div>
         <div class="row2" style="margin-top:16px">
-          <div class="field"><span class="flbl">Rejoin Delay (seconds)</span><input type="number" id="g-delay" min="0" max="60" value="3"></div>
-          <div class="field"><span class="flbl">Room Check Interval (s)</span><input type="number" id="g-check" min="1" max="60" value="5"></div>
+          <div class="field"><span class="flbl">Rejoin Delay (seconds)</span><input type="number" id="g-delay" min="0" max="60" value="3" onblur="saveBehaviourField()"></div>
+          <div class="field"><span class="flbl">Room Check Interval (s)</span><input type="number" id="g-check" min="1" max="60" value="5" onblur="saveBehaviourField()"></div>
         </div>
-        <button class="btn btn-green" onclick="saveBehaviour()">💾 Save Behaviour</button>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:8px">Toggles save immediately. Number fields save when you click away.</div>
       </div>
     </div>
 
@@ -506,6 +649,65 @@ select option{background:var(--surf2)}
     </div>
 
   </main>
+</div>
+
+<!-- ══ MODAL: Play with Friends ══════════════════════ -->
+<div class="overlay hidden" id="modal-pvp">
+  <div class="modal" style="width:480px">
+    <div class="modal-title">Play with Friends</div>
+    <div class="modal-sub">One game — bot stops when it finishes</div>
+
+    <!-- Sub-option selector -->
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px">
+      <div class="pvp-option sel" id="pvp-opt-join" onclick="selectPvpOpt('join')">
+        <div class="pvp-option-title">🎯 Find a Player's Room</div>
+        <div class="pvp-option-desc">Search for a specific player and join their room.</div>
+      </div>
+      <div class="pvp-option" id="pvp-opt-create" onclick="selectPvpOpt('create')">
+        <div class="pvp-option-title">🏠 Create a Room for Friends</div>
+        <div class="pvp-option-desc">Create a new PvP room. Share the Room ID with friends so they can join you.</div>
+      </div>
+    </div>
+
+    <!-- Join section -->
+    <div id="pvp-join-section">
+      <div class="field">
+        <span class="flbl">Player Name to Find</span>
+        <input type="text" id="pvp-player-name" placeholder="Enter the player's exact name…"
+          onkeydown="if(event.key==='Enter') startPvp()">
+      </div>
+      <p id="pvp-name-warn" style="display:none;font-family:var(--mono);font-size:11px;color:var(--red);margin-bottom:8px">
+        ⚠ Please enter a player name.
+      </p>
+    </div>
+
+    <!-- Create section -->
+    <div id="pvp-create-section" style="display:none">
+      <div style="background:var(--surf2);border:1px solid var(--border);border-radius:8px;padding:14px;margin-bottom:4px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">What Happens</div>
+        <ol style="font-size:13px;color:var(--muted2);line-height:1.9;padding-left:18px">
+          <li>A new room is created and your bot joins it</li>
+          <li>The Room ID is shown so you can share it with friends</li>
+          <li>Game starts when players are ready</li>
+          <li>Bot stops automatically when the game ends</li>
+        </ol>
+      </div>
+    </div>
+
+    <!-- Room ID display (shown after room creation) -->
+    <div id="pvp-room-created" style="display:none;margin-top:14px">
+      <div style="background:rgba(240,180,41,.07);border:1px solid rgba(240,180,41,.3);border-radius:8px;padding:14px">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--yellow);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">🏠 Room Created — Share This ID</div>
+        <div style="font-family:var(--mono);font-size:15px;color:var(--text);word-break:break-all;margin-bottom:10px" id="pvp-room-id-display">—</div>
+        <button class="btn btn-yellow-solid btn-sm" onclick="copyRoomId()">📋 Copy Room ID</button>
+      </div>
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-pvp')">Cancel</button>
+      <button class="btn btn-yellow-solid" id="pvp-start-btn" onclick="startPvp()">▶ Start</button>
+    </div>
+  </div>
 </div>
 
 <!-- ══ MODAL: Stop confirmation ═══════════════════════ -->
@@ -577,20 +779,423 @@ select option{background:var(--surf2)}
   </div>
 </div>
 
-<!-- ══ MODAL: Strategy config ════════════════════════ -->
-<div class="overlay hidden" id="modal-strat-cfg">
-  <div class="modal">
-    <div class="modal-title" id="sc-title">Configure Strategy</div>
-    <div class="modal-sub" id="sc-sub"></div>
+<!-- ══ MODAL: Strategy Dev Guide ════════════════════ -->
+<div class="overlay hidden" id="modal-guide">
+  <div class="modal" style="width:760px;max-height:88vh;overflow-y:auto">
+    <div class="modal-title">📖 Strategy Developer Guide</div>
+    <div class="modal-sub">Everything you need to build a custom UNO strategy</div>
 
-    <div class="row2">
-      <div class="field"><span class="flbl">Bot First Name <span style="color:var(--muted)">(blank = global)</span></span><input type="text" id="sc-first" placeholder="e.g. Blitz"></div>
-      <div class="field"><span class="flbl">Bot Last Name</span><input type="text" id="sc-last" placeholder="e.g. Alpha"></div>
+    <!-- Tab bar -->
+    <div style="display:flex;gap:0;border-bottom:1px solid var(--border);margin:16px 0 20px">
+      <button class="guide-tab active" id="gtab-structure"  onclick="switchGuideTab('structure')">File Structure</button>
+      <button class="guide-tab"        id="gtab-api"        onclick="switchGuideTab('api')">BaseStrategy API</button>
+      <button class="guide-tab"        id="gtab-events"     onclick="switchGuideTab('events')">Game Events</button>
+      <button class="guide-tab"        id="gtab-cards"      onclick="switchGuideTab('cards')">Card Types</button>
+      <button class="guide-tab"        id="gtab-prompt"     onclick="switchGuideTab('prompt')">🤖 AI Prompt</button>
     </div>
-    <div class="field"><span class="flbl">Player / Display Name <span style="color:var(--muted)">(blank = global)</span></span><input type="text" id="sc-player" placeholder="e.g. HoerBoer"></div>
-    <div class="field"><span class="flbl">MAC Address <span style="color:var(--muted)">(blank = global)</span></span><input type="text" id="sc-mac" placeholder="e.g. 00:11:22:33:44:55"></div>
+
+    <!-- TAB: File Structure -->
+    <div class="guide-panel" id="gpanel-structure">
+      <p class="guide-p">Each strategy lives in its own folder inside <code class="ic">strategies/</code>. The bot discovers strategies automatically — no registration needed.</p>
+
+      <div class="guide-section">Required files</div>
+      <pre class="guide-code">strategies/
+└── my_strategy/
+    ├── __init__.py      ← exports your class
+    ├── strategy.py      ← your strategy logic
+    └── stats.json       ← auto-created by the bot</pre>
+
+      <div class="guide-section">__init__.py</div>
+      <pre class="guide-code">from .strategy import MyStrategy</pre>
+
+      <div class="guide-section">strategy.py skeleton</div>
+      <pre class="guide-code">from strategies.base_strategy import BaseStrategy
+from typing import Optional, Tuple, List, Dict, Any
+
+class MyStrategy(BaseStrategy):
+    """One-line description of your strategy."""
+
+    def __init__(self):
+        super().__init__()
+        # Add any per-instance state here
+
+    # ── Required ──────────────────────────────────────
+    def choose_card(
+        self,
+        hand: List[Dict[str, Any]],
+        top_card: Dict[str, Any],
+        current_color: str,
+    ) -> Tuple[Optional[int], Optional[str]]:
+        """
+        Return (card_index, wild_color) or (None, None) to draw.
+
+        hand          — list of your cards (see Card Format below)
+        top_card      — the current top of the discard pile
+        current_color — active color (may differ after a Wild)
+        """
+        playable = self.get_playable_cards(hand, top_card, current_color)
+        if not playable:
+            return None, None           # draw a card
+
+        idx, card = playable[0]
+        wild_color = self.pick_wild_color(hand) if "WILD" in card["type"] else None
+        return idx, wild_color
+
+    # ── Optional lifecycle hooks ───────────────────────
+    def on_game_start(self):
+        super().on_game_start()         # resets session counters
+        # Reset any per-game state here
+
+    def on_game_end(self, won: bool, placement: int, points: int):
+        super().on_game_end(won, placement, points)  # saves stats!</pre>
+
+      <div class="guide-section">Deploy</div>
+      <p class="guide-p">Zip the folder and upload via <strong>Upload Strategy</strong> — the bot restarts with it available immediately. No code changes to the bot required.</p>
+    </div>
+
+    <!-- TAB: BaseStrategy API -->
+    <div class="guide-panel hidden" id="gpanel-api">
+      <div class="guide-section">Playability helpers</div>
+      <pre class="guide-code">self.is_playable(card, top_card, current_color) → bool
+self.get_playable_cards(hand, top_card, current_color) → [(index, card), ...]
+self.pick_wild_color(hand) → "RED" | "BLUE" | "GREEN" | "YELLOW"
+self.cards_by_type(hand, "SKIP") → [(index, card), ...]
+self.count_color(hand, "RED") → int</pre>
+
+      <div class="guide-section">Session stat recording (call in choose_card)</div>
+      <pre class="guide-code">self._record_play(card, wild_color=None)   # call when you play
+self._record_draw()                         # call when you draw</pre>
+
+      <div class="guide-section">Lifecycle hooks</div>
+      <pre class="guide-code">def on_game_start(self)
+    # called once per game — always call super().on_game_start()
+
+def on_game_end(self, won: bool, placement: int, points: int)
+    # called when game ends — always call super().on_game_end(...)
+    # super() calls _persist_stats() which saves to stats.json
+
+def on_turn_start(self, hand, top_card, current_color)
+    # optional — called before choose_card every turn</pre>
+
+      <div class="guide-section">Reading stats from inside your strategy</div>
+      <pre class="guide-code">from strategies.stats import StrategyStats
+s = StrategyStats("my_strategy")
+s.games_played     # int
+s.win_rate         # float (0–100)
+s.wins / s.losses  # int
+s.avg_points_per_game  # float
+s.placements       # {"1": n, "2": n, "3": n, "4+": n}</pre>
+
+      <div class="guide-section">Persisting custom data (e.g. learned weights)</div>
+      <pre class="guide-code">import json, os
+_DIR = os.path.dirname(os.path.abspath(__file__))
+
+def _load():
+    path = os.path.join(_DIR, "weights.json")
+    if os.path.exists(path):
+        return json.load(open(path))
+    return {"aggression": 0.5}
+
+def _save(data):
+    json.dump(data, open(os.path.join(_DIR, "weights.json"), "w"), indent=2)</pre>
+    </div>
+
+    <!-- TAB: Game Events -->
+    <div class="guide-panel hidden" id="gpanel-events">
+      <p class="guide-p">The bot handles all Socket.io events for you. Your strategy only needs <code class="ic">choose_card()</code>. These are the events the server emits:</p>
+
+      <div class="guide-section">turn (public) — fires on every state change</div>
+      <pre class="guide-code">{
+  roomId:       "uuid",
+  playerId:     "uuid",        // whose turn it is
+  playerName:   "Bot 1",
+  topCard:      { color: "RED", type: "NUMBER", value: 5 },
+  currentColor: "RED",         // active color after wilds
+  unoCalled:    false,
+  history:      [ {color, type, value}, ... ],
+  players:      [ { id, name, cardCount, score }, ... ]
+}</pre>
+
+      <div class="guide-section">turn (private) — only sent to the player whose turn it is</div>
+      <pre class="guide-code">{
+  ...publicTurnData,
+  hand: [ { color: "RED", type: "NUMBER", value: 5 }, ... ]
+}</pre>
+
+      <div class="guide-section">action — card played or drawn</div>
+      <pre class="guide-code">{
+  type:     "play" | "draw" | "uno" | "penalty",
+  playerId: "uuid",
+  card:     { color, type, value },   // card involved (if any)
+  result: {
+    success:            true,
+    penalty:            boolean,
+    penaltyTitle:       "string",     // only if penalty
+    penaltyDescription: "string"      // only if penalty
+  },
+  gameState: { ... }
+}</pre>
+
+      <div class="guide-section">gameStart</div>
+      <pre class="guide-code">{ players: [ { id, name, cardCount, score }, ... ] }</pre>
+
+      <div class="guide-section">gameEnd</div>
+      <pre class="guide-code">{
+  winner: { id: "uuid", name: "Winner Name" },
+  score:  50,           // points from opponents' hands
+  reason: "played_out"
+}</pre>
+
+      <div class="guide-section">countdownStart / countdownCancel</div>
+      <pre class="guide-code">countdownStart: { seconds: 10, message: "Game starting in..." }
+countdownCancel: { reason: "Not enough players" }</pre>
+
+      <div class="guide-section">REST API actions available</div>
+      <pre class="guide-code">play_card(room_id, player_id, card_index, wild_color=None)
+draw_card(room_id, player_id)
+pass_turn(room_id, player_id)     # only after drawing an unplayable card
+call_uno(room_id, player_id)      # call before playing 2nd-to-last card
+catchout(room_id, challenger_id, target_id)  # challenge missed UNO</pre>
+    </div>
+
+    <!-- TAB: Card Types -->
+    <div class="guide-panel hidden" id="gpanel-cards">
+      <p class="guide-p">Every card in <code class="ic">hand</code>, <code class="ic">top_card</code>, or <code class="ic">history</code> follows this structure:</p>
+
+      <div class="guide-section">Card object</div>
+      <pre class="guide-code">{ color: Color, type: CardType, value?: number }</pre>
+
+      <div class="guide-section">Color values</div>
+      <pre class="guide-code">type Color = "RED" | "BLUE" | "GREEN" | "YELLOW" | "WILD"</pre>
+
+      <div class="guide-section">Card type values</div>
+      <pre class="guide-code">type CardType =
+  | "NUMBER"         // value: 0–9
+  | "SKIP"           // skip next player
+  | "REVERSE"        // reverse play order
+  | "DRAW_TWO"       // next player draws 2 and loses turn
+  | "WILD"           // choose any color
+  | "WILD_DRAW_FOUR" // choose color + next player draws 4</pre>
+
+      <div class="guide-section">Examples</div>
+      <pre class="guide-code">{ color: "RED",  type: "NUMBER",         value: 7 }
+{ color: "BLUE", type: "SKIP"                     }
+{ color: "WILD", type: "WILD"                     }
+{ color: "WILD", type: "WILD_DRAW_FOUR"           }</pre>
+
+      <div class="guide-section">Point values (used in scoring)</div>
+      <pre class="guide-code">NUMBER cards     →  face value (0–9)
+SKIP             →  20 pts
+REVERSE          →  20 pts
+DRAW_TWO         →  20 pts
+WILD             →  50 pts
+WILD_DRAW_FOUR   →  50 pts</pre>
+
+      <div class="guide-section">Rate limiting</div>
+      <pre class="guide-code">Max 60 actions / minute (1 per second average) per MAC address.
+Header: X-MAC-Address: 00:11:22:33:44:55
+The bot sends this automatically from config.</pre>
+
+      <div class="guide-section">Key rules</div>
+      <pre class="guide-code">• You can only play a card if:
+    card.color == currentColor, OR
+    card.type  == top_card.type (for action cards), OR
+    card.value == top_card.value (for NUMBER cards), OR
+    card.type.startsWith("WILD")
+
+• After drawing: if drawn card is not playable, call pass_turn()
+• Call UNO before playing your 2nd-to-last card (when hand.length == 2)
+• Catchout a player who has 1 card and did not call UNO</pre>
+    </div>
+
+    <!-- TAB: AI Prompt -->
+    <div class="guide-panel hidden" id="gpanel-prompt">
+      <p class="guide-p">Copy this prompt into Claude, ChatGPT, or any AI assistant. It includes the full API context so the AI generates a working, uploadable strategy with no extra setup.</p>
+
+      <div style="display:flex;justify-content:flex-end;margin-bottom:8px">
+        <button class="btn btn-blue btn-sm" onclick="copyPrompt()">📋 Copy Prompt</button>
+      </div>
+
+      <pre class="guide-code" id="ai-prompt-text" style="max-height:520px;overflow-y:auto;user-select:text;font-size:11px">Create a Python UNO bot strategy for me. Here is all the context you need:
+
+━━━ PROJECT STRUCTURE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+strategies/
+└── my_strategy/
+    ├── __init__.py      ← from .strategy import MyStrategy
+    ├── strategy.py      ← your code goes here
+    └── stats.json       ← auto-created, do not create manually
+
+━━━ BASE CLASS (strategies/base_strategy.py) ━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+from strategies.base_strategy import BaseStrategy
+from typing import Optional, Tuple, List, Dict, Any
+
+class MyStrategy(BaseStrategy):
+
+    def __init__(self):
+        super().__init__()
+
+    # REQUIRED — return (card_index, wild_color) or (None, None) to draw
+    def choose_card(self, hand, top_card, current_color):
+        ...
+
+    # OPTIONAL lifecycle hooks — always call super()
+    def on_game_start(self):
+        super().on_game_start()
+
+    def on_game_end(self, won, placement, points):
+        super().on_game_end(won, placement, points)  # saves stats to disk
+
+━━━ BUILT-IN HELPERS (all inherited from BaseStrategy) ━━━━━━━━━━━━━━━━━
+
+self.get_playable_cards(hand, top_card, current_color) → [(idx, card), ...]
+self.is_playable(card, top_card, current_color) → bool
+self.pick_wild_color(hand) → "RED"|"BLUE"|"GREEN"|"YELLOW"  (picks most common)
+self.cards_by_type(hand, "SKIP") → [(idx, card), ...]
+self.count_color(hand, "RED") → int
+
+# Call these in choose_card for automatic stats tracking:
+self._record_play(card, wild_color=None)
+self._record_draw()
+
+# Read lifetime stats from inside your strategy:
+from strategies.stats import StrategyStats
+s = StrategyStats("my_strategy")
+print(s.win_rate, s.games_played, s.placements)
+
+━━━ CARD FORMAT ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Every card is a dict:
+  { "color": Color, "type": CardType, "value": int (NUMBER only) }
+
+Color = "RED" | "BLUE" | "GREEN" | "YELLOW" | "WILD"
+CardType = "NUMBER" | "SKIP" | "REVERSE" | "DRAW_TWO" | "WILD" | "WILD_DRAW_FOUR"
+
+A card is playable if:
+  card["color"] == currentColor, OR
+  card["type"]  == top_card["type"] (for non-NUMBER), OR
+  card["value"] == top_card["value"] (for NUMBER), OR
+  card["type"].startswith("WILD")
+
+Point values: NUMBER=face value, SKIP/REVERSE/DRAW_TWO=20, WILD/WILD_DRAW_FOUR=50
+
+━━━ GAME FLOW ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. on_game_start() is called once
+2. choose_card() is called every time it is YOUR turn
+3. Return (card_index, wild_color) to play, or (None, None) to draw
+4. After drawing: if drawn card not playable, pass_turn() is called automatically
+5. Call UNO is handled automatically when hand size == 2
+6. on_game_end(won, placement, points) is called once at the end
+   - won: True if you won
+   - placement: 1=first, 2=second, etc.
+   - points: points scored from opponents' remaining cards
+
+━━━ RULES REMINDER ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+- 60 actions/minute rate limit (bot handles this automatically)
+- call_uno() fires automatically when you have 2 cards and play one
+- You can only draw once per turn; then you must play or pass
+- WILD/WILD_DRAW_FOUR: always return a wild_color string, never None
+
+━━━ DELIVERABLE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Produce two files ready for upload:
+
+FILE 1 — strategies/my_strategy/__init__.py:
+(single import line)
+
+FILE 2 — strategies/my_strategy/strategy.py:
+(full strategy class — no external dependencies beyond stdlib + base_strategy)
+
+The files must be zipped as:  my_strategy.zip  containing the folder my_strategy/
+Upload the zip via the UnoBot UI → Strategies → Upload Strategy.
+
+━━━ STRATEGY REQUEST ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+[DESCRIBE YOUR STRATEGY HERE — e.g.:
+  "Build an aggressive bot that prioritizes DRAW_TWO and WILD_DRAW_FOUR,
+   saves WILD cards for when it has 3 or fewer cards left, and tracks
+   opponents' card counts to decide when to play defensively."]</pre>
+
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:10px">
+        Edit the last section then copy. The AI will return two ready-to-upload files.
+      </div>
+    </div>
 
     <div class="modal-footer">
+      <button class="btn btn-ghost" onclick="closeModal('modal-guide')">Close</button>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Strategy config ════════════════════════ -->
+<div class="overlay hidden" id="modal-strat-cfg">
+  <div class="modal" style="width:520px">
+    <div class="modal-title" id="sc-title">Configure Strategy</div>
+    <div class="modal-sub" id="sc-sub">Blank fields inherit from global defaults</div>
+
+    <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">Identity Overrides</div>
+    <div class="row2">
+      <div class="field"><span class="flbl">First Name</span><input type="text" id="sc-first" placeholder="← global"></div>
+      <div class="field"><span class="flbl">Last Name</span><input type="text" id="sc-last" placeholder="← global"></div>
+    </div>
+    <div class="row2">
+      <div class="field"><span class="flbl">Player Name</span><input type="text" id="sc-player" placeholder="← global"></div>
+      <div class="field"><span class="flbl">MAC Address</span><input type="text" id="sc-mac" placeholder="← global"></div>
+    </div>
+
+    <hr class="modal-divider">
+    <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1.5px;margin-bottom:10px">Behaviour Overrides</div>
+
+    <div class="toggle-row">
+      <div class="toggle-info"><div class="tlbl">Only Human Players</div><div class="tsub">Override global — only join rooms with real players</div></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <select id="sc-only" style="width:auto;min-width:110px">
+          <option value="">← global</option>
+          <option value="true">On</option>
+          <option value="false">Off</option>
+        </select>
+      </div>
+    </div>
+    <div class="toggle-row">
+      <div class="toggle-info"><div class="tlbl">Auto Rejoin</div><div class="tsub">Override global — rejoin automatically after each game</div></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <select id="sc-rejoin" style="width:auto;min-width:110px">
+          <option value="">← global</option>
+          <option value="true">On</option>
+          <option value="false">Off</option>
+        </select>
+      </div>
+    </div>
+    <div class="toggle-row">
+      <div class="toggle-info"><div class="tlbl">Sandbox Mode</div><div class="tsub">Override global — play against bots only</div></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <select id="sc-sandbox" style="width:auto;min-width:110px">
+          <option value="">← global</option>
+          <option value="true">On</option>
+          <option value="false">Off</option>
+        </select>
+      </div>
+    </div>
+    <div class="toggle-row">
+      <div class="toggle-info"><div class="tlbl">Debug Mode</div><div class="tsub">Override global — verbose log output</div></div>
+      <div style="display:flex;align-items:center;gap:8px">
+        <select id="sc-debug" style="width:auto;min-width:110px">
+          <option value="">← global</option>
+          <option value="true">On</option>
+          <option value="false">Off</option>
+        </select>
+      </div>
+    </div>
+    <div class="field" style="margin-top:12px">
+      <span class="flbl">Rejoin Delay (seconds) <span style="color:var(--muted)">(blank = global)</span></span>
+      <input type="number" id="sc-delay" min="0" max="120" placeholder="← global" style="width:160px">
+    </div>
+
+    <div class="modal-footer">
+      <button class="btn btn-red btn-sm" onclick="clearStratOverrides()">✕ Clear All Overrides</button>
+      <div style="flex:1"></div>
       <button class="btn btn-ghost" onclick="closeModal('modal-strat-cfg')">Cancel</button>
       <button class="btn btn-green" id="sc-save-btn" onclick="saveStratCfg()">💾 Save</button>
     </div>
@@ -628,7 +1233,7 @@ select option{background:var(--surf2)}
 // ═══════════════════════════════════════════════════
 // State
 // ═══════════════════════════════════════════════════
-let _status   = {status:'stopped',paused:false,active_strategy:'—',pid:null,uptime_seconds:null,room_id:null};
+let _status   = {status:'stopped',paused:false,active_strategy:'—',pid:null,uptime_seconds:null,room_id:null,is_sandbox_mode:true};
 let _strats   = [];
 let _launchMode = 'auto';
 let _targets  = [];
@@ -653,7 +1258,7 @@ function navTo(id, el) {
   document.getElementById('page-' + id).classList.add('active');
   el.classList.add('active');
   if (id === 'strategies') loadStrats();
-  if (id === 'stats')      populateStatsSel();
+  if (id === 'stats')      { populateStatsSel(); autoLoadActiveStats(); }
   if (id === 'config')     loadConfig();
 }
 
@@ -743,9 +1348,18 @@ function renderStatus() {
     (running && s.uptime_seconds != null) ? fmtUp(s.uptime_seconds) : '—';
 
   // Control buttons
-  document.getElementById('btn-start').disabled  = running;
-  document.getElementById('btn-start2').disabled = running;
   document.getElementById('btn-stop').disabled   = !running;
+  // Play cards — disable all three when bot is running
+  setPlayBtnsDisabled(running);
+  if (!running) { _activeMode = null; highlightPlayCard(null); }
+
+  // Auto Grind button is always available — sandbox is optional
+  if (!running) {
+    document.getElementById('btn-auto').disabled = false;
+    document.getElementById('auto-sandbox-badge').style.display = 'none';
+    document.getElementById('auto-sandbox-warn').style.display  = 'none';
+    document.getElementById('pc-auto').style.opacity = '';
+  }
   const pb = document.getElementById('btn-pause');
   const rb = document.getElementById('btn-resume');
   pb.disabled = !running || paused;
@@ -773,95 +1387,144 @@ function fmtUp(sec) {
 
 
 // ═══════════════════════════════════════════════════
-// Mode + target players
 // ═══════════════════════════════════════════════════
-function selMode(mode, el) {
-  _launchMode = mode;
-  document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('sel'));
-  el.classList.add('sel');
-  const hint = document.getElementById('target-hint');
-  if (mode === 'target') {
-    hint.classList.add('show');
-  } else {
-    hint.classList.remove('show');
-    _targets = [];
-    renderTags();
-    document.getElementById('target-input').value = '';
-    document.getElementById('target-warn').style.display = 'none';
-  }
-}
-
-function targetKey(e) {
-  if (e.key === 'Enter' || e.key === ',') {
-    e.preventDefault();
-    addTarget(e.target.value.trim().replace(/,+$/, ''));
-    e.target.value = '';
-  }
-}
-
-function targetComma(e) {
-  if (e.target.value.includes(',')) {
-    const parts = e.target.value.split(',');
-    e.target.value = parts.pop();
-    parts.forEach(p => addTarget(p.trim()));
-  }
-}
-
-function addTarget(name) {
-  if (!name || _targets.includes(name)) return;
-  _targets.push(name);
-  renderTags();
-  document.getElementById('target-warn').style.display = 'none';
-}
-
-function removeTarget(name) {
-  _targets = _targets.filter(t => t !== name);
-  renderTags();
-}
-
-function renderTags() {
-  document.getElementById('tag-list').innerHTML = _targets.map(t =>
-    `<div class="tag">${t}<button onclick="removeTarget('${t.replace(/'/g,"\\'")}')">×</button></div>`
-  ).join('');
-}
-
-
+// Play mode cards
 // ═══════════════════════════════════════════════════
-// Bot control
-// ═══════════════════════════════════════════════════
-async function startBot() {
-  if (_launchMode === 'target') {
-    const inp = document.getElementById('target-input');
-    if (inp.value.trim()) addTarget(inp.value.trim()), inp.value='';
-    if (_targets.length === 0) {
-      document.getElementById('target-warn').style.display = 'block';
-      return;
-    }
-  }
+let _activeMode = null;  // 'auto' | 'wait' | 'pvp'
+
+function highlightPlayCard(mode) {
+  ['pc-auto','pc-wait','pc-pvp'].forEach(id => {
+    document.getElementById(id).className = 'play-card';
+  });
+  if (mode === 'auto') document.getElementById('pc-auto').classList.add('running-auto');
+  if (mode === 'wait') document.getElementById('pc-wait').classList.add('running-wait');
+  if (mode === 'pvp')  document.getElementById('pc-pvp').classList.add('running-pvp');
+}
+
+function setPlayBtnsDisabled(disabled) {
+  ['btn-auto','btn-wait','btn-pvp'].forEach(id => {
+    document.getElementById(id).disabled = disabled;
+  });
+}
+
+async function startMode(mode) {
+  // (sandbox mode is recommended for Auto Grind but not enforced here)
   const strategy = document.getElementById('launch-strat').value || null;
   try {
+    const autoRejoin = (mode !== 'pvp');
     await api('/bot/start', {method:'POST', body:JSON.stringify({
-      mode: _launchMode, strategy, target_players: _targets
+      mode: (mode === 'pvp' ? 'auto' : mode),
+      strategy,
+      target_players: [],
+      auto_rejoin: autoRejoin,
     })});
-    toast('▶ Bot started');
+    _activeMode = mode;
+    highlightPlayCard(mode);
+    setPlayBtnsDisabled(true);
+    toast('▶ ' + {auto:'Auto Grind started', wait:'Waiting for a room…', pvp:'PvP game starting'}[mode]);
     setTimeout(pollStatus, 500);
   } catch(e) { toast('❌ ' + e.message, 'err'); }
 }
 
-function confirmStop() {
-  openModal('modal-stop');
+// ─── PvP modal ───────────────────────────────────────
+let _pvpOpt = 'join';
+let _pvpRoomId = null;
+
+function openPvpModal() {
+  selectPvpOpt('join');
+  document.getElementById('pvp-player-name').value = '';
+  document.getElementById('pvp-name-warn').style.display = 'none';
+  document.getElementById('pvp-room-created').style.display = 'none';
+  document.getElementById('pvp-start-btn').textContent = '▶ Find & Join';
+  document.getElementById('pvp-start-btn').disabled = false;
+  document.getElementById('pvp-start-btn').onclick = startPvp;
+  openModal('modal-pvp');
 }
+
+function selectPvpOpt(opt) {
+  _pvpOpt = opt;
+  document.getElementById('pvp-opt-join').classList.toggle('sel', opt === 'join');
+  document.getElementById('pvp-opt-create').classList.toggle('sel', opt === 'create');
+  document.getElementById('pvp-join-section').style.display = opt === 'join' ? '' : 'none';
+  document.getElementById('pvp-create-section').style.display = opt === 'create' ? '' : 'none';
+  document.getElementById('pvp-room-created').style.display = 'none';
+  document.getElementById('pvp-start-btn').textContent = opt === 'create' ? '🏠 Create Room' : '▶ Find & Join';
+  document.getElementById('pvp-start-btn').disabled = false;
+  document.getElementById('pvp-start-btn').onclick = startPvp;
+}
+
+async function startPvp() {
+  const strategy = document.getElementById('launch-strat').value || null;
+
+  if (_pvpOpt === 'join') {
+    const name = document.getElementById('pvp-player-name').value.trim();
+    if (!name) { document.getElementById('pvp-name-warn').style.display = 'block'; return; }
+    closeModal('modal-pvp');
+    try {
+      await api('/bot/start', {method:'POST', body:JSON.stringify({
+        mode: 'target', strategy, target_players: [name], auto_rejoin: false
+      })});
+      _activeMode = 'pvp';
+      highlightPlayCard('pvp');
+      setPlayBtnsDisabled(true);
+      toast('🎯 Searching for ' + name + `'s room…`, 'info');
+      setTimeout(pollStatus, 500);
+    } catch(e) { toast('❌ ' + e.message, 'err'); }
+
+  } else {
+    const btn = document.getElementById('pvp-start-btn');
+    btn.disabled = true;
+    btn.textContent = '⏳ Creating…';
+    try {
+      const r = await api('/room/create', {method:'POST'});
+      if (!r.ok) throw new Error(r.error);
+      _pvpRoomId = r.room_id;
+      document.getElementById('pvp-room-id-display').textContent = r.room_id;
+      document.getElementById('pvp-room-created').style.display = 'block';
+      btn.textContent = '✅ Done — Close';
+      btn.disabled = false;
+      btn.onclick = () => {
+        closeModal('modal-pvp');
+        _activeMode = 'pvp';
+        highlightPlayCard('pvp');
+        setPlayBtnsDisabled(true);
+        toast('🏠 Room ready — share the ID with friends!', 'info');
+        setTimeout(pollStatus, 500);
+      };
+      toast('🏠 Room created! Share the ID with friends.', 'info');
+    } catch(e) {
+      toast('❌ ' + e.message, 'err');
+      btn.disabled = false;
+      btn.textContent = '🏠 Create Room';
+    }
+  }
+}
+
+function copyRoomId() {
+  const id = document.getElementById('pvp-room-id-display').textContent;
+  navigator.clipboard.writeText(id).then(() => toast('📋 Room ID copied!')).catch(() => {
+    const el = document.createElement('textarea');
+    el.value = id; document.body.appendChild(el); el.select();
+    document.execCommand('copy'); document.body.removeChild(el);
+    toast('📋 Copied!');
+  });
+}
+
+// ═══════════════════════════════════════════════════
+// Bot control (stop / pause / resume)
+// ═══════════════════════════════════════════════════
+function confirmStop() { openModal('modal-stop'); }
 
 async function stopBot(leaveRoom) {
   closeModal('modal-stop');
   try {
     if (leaveRoom && _status.room_id) {
-      try {
-        await api('/room/leave', {method:'POST'});
-        toast('🚪 Left room');
-      } catch(e) { /* ignore — bot stop will handle cleanup */ }
+      try { await api('/room/leave', {method:'POST'}); toast('🚪 Left room'); } catch(e) {}
     }
     await api('/bot/stop', {method:'POST'});
+    _activeMode = null;
+    highlightPlayCard(null);
+    setPlayBtnsDisabled(false);
     toast('⏹ Bot stopped');
     setTimeout(pollStatus, 500);
   } catch(e) { toast('❌ ' + e.message, 'err'); }
@@ -870,7 +1533,7 @@ async function stopBot(leaveRoom) {
 async function pauseBot() {
   try {
     await api('/bot/pause', {method:'POST'});
-    toast('⏸ Bot will pause after this game', 'warn');
+    toast('⏸ Will pause after this game', 'warn');
     setTimeout(pollStatus, 400);
   } catch(e) { toast('❌ ' + e.message, 'err'); }
 }
@@ -918,7 +1581,7 @@ async function rejoinAfterLeave(mode) {
     closeModal('modal-left-room');
     try {
       await api('/room/join', {method:'POST', body:JSON.stringify({mode:'target', target_players:[name]})});
-      toast('✅ Joined player\'s room');
+      toast("✅ Joined player's room");
       setTimeout(pollStatus, 600);
     } catch(e) { toast('❌ ' + e.message, 'err'); }
   } else {
@@ -963,9 +1626,19 @@ function renderStrats() {
     const st  = s.stats;
     const wr  = st.win_rate.toFixed(1);
     const cfg = s.config || {};
-    const identity = (cfg.bot_first_name||cfg.bot_last_name)
-      ? `${cfg.bot_first_name||''} ${cfg.bot_last_name||''}`.trim()
-      : 'Using global identity';
+
+    // Build override badges
+    const overrideBadges = [];
+    if (cfg.bot_first_name || cfg.bot_last_name)
+      overrideBadges.push(`🏷 ${(cfg.bot_first_name||'')+' '+(cfg.bot_last_name||'')}`);
+    if (cfg.only_players_mode !== undefined) overrideBadges.push(`👤 ${cfg.only_players_mode?'Only Players':'Any Room'}`);
+    if (cfg.auto_rejoin !== undefined)       overrideBadges.push(`🔄 ${cfg.auto_rejoin?'Auto Rejoin':'No Rejoin'}`);
+    if (cfg.is_sandbox_mode !== undefined)   overrideBadges.push(`🏖 ${cfg.is_sandbox_mode?'Sandbox':'Live'}`);
+    if (cfg.debug_mode !== undefined)        overrideBadges.push(`🐛 Debug ${cfg.debug_mode?'On':'Off'}`);
+    if (cfg.rejoin_delay !== undefined)      overrideBadges.push(`⏱ ${cfg.rejoin_delay}s delay`);
+    const overridesHtml = overrideBadges.length
+      ? overrideBadges.map(b => `<span style="display:inline-flex;align-items:center;padding:2px 7px;background:rgba(59,130,246,.1);color:var(--blue);border:1px solid rgba(59,130,246,.2);border-radius:4px;font-family:var(--mono);font-size:9px;margin:2px">${b}</span>`).join('')
+      : `<span style="font-family:var(--mono);font-size:10px;color:var(--muted)">No overrides — using global settings</span>`;
 
     return `<div class="sc ${s.active ? 'active-strat' : ''}" id="sc-${s.id}">
       <div class="sc-header">
@@ -973,9 +1646,9 @@ function renderStrats() {
           <div class="sc-name">${fmtId(s.id)}</div>
           <div class="sc-cls">${s.name}</div>
         </div>
-        ${s.active ? '<div class="active-badge">● ACTIVE</div>' : ''}
+        ${s.active ? '<div class="active-badge">● DEFAULT</div>' : ''}
       </div>
-      <div class="sc-identity" id="sc-ident-${s.id}">🏷 ${identity}</div>
+      <div id="sc-ident-${s.id}" style="font-size:12px;margin-bottom:10px;line-height:1.6">${overridesHtml}</div>
       <div class="sc-stats">
         <div class="sc-stat"><div class="sc-stat-lbl">Win %</div><div class="sc-stat-val ${st.win_rate>=50?'g':'r'}">${wr}</div></div>
         <div class="sc-stat"><div class="sc-stat-lbl">Games</div><div class="sc-stat-val">${st.games_played}</div></div>
@@ -983,9 +1656,9 @@ function renderStrats() {
       </div>
       <div class="sc-actions">
         ${s.active
-          ? `<button class="btn btn-ghost btn-xs" disabled>● Active</button>`
-          : `<button class="btn btn-green btn-xs" onclick="setActive('${s.id}')">▶ Set Active</button>`}
-        <button class="btn btn-ghost btn-xs" onclick="openStratCfg('${s.id}')">✏ Identity</button>
+          ? `<button class="btn btn-ghost btn-xs" disabled style="opacity:.4">★ Default</button>`
+          : `<button class="btn btn-green btn-xs" onclick="setActive('${s.id}')">★ Set Default</button>`}
+        <button class="btn btn-ghost btn-xs" onclick="openStratCfg('${s.id}')">⚙ Overrides</button>
         <button class="btn btn-ghost btn-xs" onclick="viewStratStats('${s.id}')">📊 Stats</button>
         <button class="btn btn-red btn-xs"   onclick="resetStats('${s.id}')">🗑</button>
       </div>
@@ -1035,25 +1708,55 @@ function populateStatsSel() {
   if (cur) sel.value = cur;
 }
 
+async function autoLoadActiveStats() {
+  // Ensure both strats and status are fresh
+  if (!_strats.length) await loadStrats();
+  try { _status = await api('/status'); } catch(_) {}
+  populateStatsSel();
+  const sel = document.getElementById('stats-sel');
+  // Pick: current selection → active strategy → first strategy in list
+  const target = sel.value
+    || (_status.active_strategy && _status.active_strategy !== '—' ? _status.active_strategy : null)
+    || (_strats.length ? _strats[0].id : null);
+  if (target) {
+    sel.value = target;
+    if (sel.value) loadStats(sel.value);
+  }
+}
+
 
 // ═══════════════════════════════════════════════════
 // Strategy config modal
 // ═══════════════════════════════════════════════════
+function _boolVal(val) {
+  if (val === true  || val === "true")  return "true";
+  if (val === false || val === "false") return "false";
+  return "";
+}
+
 async function openStratCfg(id) {
   _cfgStratId = id;
   const s = _strats.find(x => x.id === id);
-  document.getElementById('sc-title').textContent = `Configure — ${fmtId(id)}`;
-  document.getElementById('sc-sub').textContent = s ? s.name : id;
-  // Clear fields
-  ['sc-first','sc-last','sc-player','sc-mac'].forEach(i => document.getElementById(i).value = '');
+  document.getElementById('sc-title').textContent = `⚙ Overrides — ${fmtId(id)}`;
+  document.getElementById('sc-sub').textContent = s ? s.name + ' · blank fields use global default' : id;
   document.getElementById('sc-save-btn').disabled = false;
+
+  // Clear all fields first
+  ['sc-first','sc-last','sc-player','sc-mac'].forEach(i => document.getElementById(i).value = '');
+  ['sc-only','sc-rejoin','sc-sandbox','sc-debug'].forEach(i => document.getElementById(i).value = '');
+  document.getElementById('sc-delay').value = '';
 
   try {
     const c = await api(`/strategies/${id}/config`);
-    document.getElementById('sc-first').value  = c.bot_first_name || '';
-    document.getElementById('sc-last').value   = c.bot_last_name  || '';
-    document.getElementById('sc-player').value = c.player_name    || '';
-    document.getElementById('sc-mac').value    = c.mac_address    || '';
+    document.getElementById('sc-first').value   = c.bot_first_name || '';
+    document.getElementById('sc-last').value    = c.bot_last_name  || '';
+    document.getElementById('sc-player').value  = c.player_name    || '';
+    document.getElementById('sc-mac').value     = c.mac_address    || '';
+    document.getElementById('sc-only').value    = _boolVal(c.only_players_mode);
+    document.getElementById('sc-rejoin').value  = _boolVal(c.auto_rejoin);
+    document.getElementById('sc-sandbox').value = _boolVal(c.is_sandbox_mode);
+    document.getElementById('sc-debug').value   = _boolVal(c.debug_mode);
+    if (c.rejoin_delay !== undefined) document.getElementById('sc-delay').value = c.rejoin_delay;
   } catch(e) {}
 
   openModal('modal-strat-cfg');
@@ -1063,20 +1766,31 @@ async function saveStratCfg() {
   if (!_cfgStratId) return;
   const btn = document.getElementById('sc-save-btn');
   btn.disabled = true;
+
+  // Booleans: "" means "remove override", "true"/"false" means set it
+  function parseBool(val) {
+    if (val === "true")  return true;
+    if (val === "false") return false;
+    return "";  // empty string → server will remove the key
+  }
+
   const data = {
-    bot_first_name: document.getElementById('sc-first').value.trim(),
-    bot_last_name:  document.getElementById('sc-last').value.trim(),
-    player_name:    document.getElementById('sc-player').value.trim(),
-    mac_address:    document.getElementById('sc-mac').value.trim(),
+    bot_first_name:    document.getElementById('sc-first').value.trim(),
+    bot_last_name:     document.getElementById('sc-last').value.trim(),
+    player_name:       document.getElementById('sc-player').value.trim(),
+    mac_address:       document.getElementById('sc-mac').value.trim(),
+    only_players_mode: parseBool(document.getElementById('sc-only').value),
+    auto_rejoin:       parseBool(document.getElementById('sc-rejoin').value),
+    is_sandbox_mode:   parseBool(document.getElementById('sc-sandbox').value),
+    debug_mode:        parseBool(document.getElementById('sc-debug').value),
+    rejoin_delay:      document.getElementById('sc-delay').value !== ''
+                         ? parseInt(document.getElementById('sc-delay').value)
+                         : "",
   };
+
   try {
     await api(`/strategies/${_cfgStratId}/config`, {method:'PATCH', body:JSON.stringify(data)});
-    toast(`✅ Identity saved for ${fmtId(_cfgStratId)}`);
-    const hint = (data.bot_first_name||data.bot_last_name)
-      ? `${data.bot_first_name} ${data.bot_last_name}`.trim()
-      : 'Using global identity';
-    const el = document.getElementById(`sc-ident-${_cfgStratId}`);
-    if (el) el.textContent = '🏷 ' + hint;
+    toast(`✅ Overrides saved — ${fmtId(_cfgStratId)}`);
     await loadStrats();
     closeModal('modal-strat-cfg');
   } catch(e) {
@@ -1084,6 +1798,23 @@ async function saveStratCfg() {
   } finally {
     btn.disabled = false;
   }
+}
+
+async function clearStratOverrides() {
+  if (!_cfgStratId) return;
+  if (!confirm(`Clear ALL overrides for "${fmtId(_cfgStratId)}"? It will use global defaults for everything.`)) return;
+  try {
+    // Send all fields as empty to strip them
+    const empty = {
+      bot_first_name:"", bot_last_name:"", player_name:"", mac_address:"",
+      only_players_mode:"", auto_rejoin:"", is_sandbox_mode:"", debug_mode:"",
+      rejoin_delay:""
+    };
+    await api(`/strategies/${_cfgStratId}/config`, {method:'PATCH', body:JSON.stringify(empty)});
+    toast(`✅ All overrides cleared — ${fmtId(_cfgStratId)}`);
+    await loadStrats();
+    closeModal('modal-strat-cfg');
+  } catch(e) { toast('❌ ' + e.message, 'err'); }
 }
 
 
@@ -1099,41 +1830,118 @@ async function loadStats(id) {
   } catch(e) { el.innerHTML = `<div class="empty"><div>Could not load stats</div></div>`; }
 }
 
+// ── SVG chart helpers ─────────────────────────────────────────────────────
+
+function svgDonut(slices, r=52, stroke=18, size=140) {
+  // slices: [{value, color, label}]
+  const total = slices.reduce((a,b) => a + b.value, 0) || 1;
+  const cx = size/2, cy = size/2;
+  const circ = 2 * Math.PI * r;
+  let offset = -Math.PI/2; // start at 12 o'clock
+  const paths = slices.map(({value, color}) => {
+    const frac = value / total;
+    const angle = frac * 2 * Math.PI;
+    const x1 = cx + r * Math.cos(offset);
+    const y1 = cy + r * Math.sin(offset);
+    offset += angle;
+    const x2 = cx + r * Math.cos(offset);
+    const y2 = cy + r * Math.sin(offset);
+    const large = angle > Math.PI ? 1 : 0;
+    if (frac < 0.001) return '';
+    return `<path d="M${cx},${cy} L${x1},${y1} A${r},${r} 0 ${large},1 ${x2},${y2} Z"
+      fill="${color}" opacity="0.85"/>`;
+  }).join('');
+  return `<svg width="${size}" height="${size}" viewBox="0 0 ${size} ${size}">
+    <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--surf2)" stroke-width="${stroke}"/>
+    ${paths}
+    <circle cx="${cx}" cy="${cy}" r="${r - stroke/2 - 2}" fill="var(--surf)"/>
+  </svg>`;
+}
+
+function svgBars(items, maxH=80, w=220) {
+  // items: [{label, value, color}]
+  if (!items.length) return '';
+  const max = Math.max(1, ...items.map(i => i.value));
+  const bw = Math.floor((w - (items.length-1)*6) / items.length);
+  const bars = items.map((item, i) => {
+    const bh = Math.max(2, Math.round((item.value / max) * maxH));
+    const x = i * (bw + 6);
+    const y = maxH - bh;
+    return `<g>
+      <rect x="${x}" y="${y}" width="${bw}" height="${bh}" rx="3" fill="${item.color}" opacity="0.85"/>
+      <text x="${x + bw/2}" y="${maxH + 14}" text-anchor="middle"
+        font-family="monospace" font-size="8" fill="var(--muted)">${item.label}</text>
+      <text x="${x + bw/2}" y="${y - 3}" text-anchor="middle"
+        font-family="monospace" font-size="9" fill="var(--fg)">${item.value}</text>
+    </g>`;
+  }).join('');
+  return `<svg width="${w}" height="${maxH + 24}" viewBox="0 0 ${w} ${maxH + 24}">${bars}</svg>`;
+}
+
+function svgWinLoss(wins, losses) {
+  const total = Math.max(1, wins + losses);
+  const wp = (wins / total) * 100;
+  const lp = (losses / total) * 100;
+  return `<div style="margin-top:4px">
+    <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;margin-bottom:5px">
+      <span style="color:var(--green)">Wins ${wins}</span>
+      <span style="color:var(--muted)">${wp.toFixed(0)}% win rate</span>
+      <span style="color:var(--red)">Losses ${losses}</span>
+    </div>
+    <div style="display:flex;height:10px;border-radius:5px;overflow:hidden;gap:2px">
+      <div style="flex:${wins};background:var(--green);opacity:.8;border-radius:5px 0 0 5px;min-width:${wins?2:0}px"></div>
+      <div style="flex:${losses};background:var(--red);opacity:.8;border-radius:0 5px 5px 0;min-width:${losses?2:0}px"></div>
+    </div>
+  </div>`;
+}
+
 function renderStats(id, s) {
-  const total = Math.max(1, s.placements['1']+s.placements['2']+s.placements['3']+s.placements['4+']);
-  const placements = [
-    {k:'1',label:'🥇 1st',color:'var(--yellow)'},
-    {k:'2',label:'🥈 2nd',color:'var(--blue)'},
-    {k:'3',label:'🥉 3rd',color:'var(--orange)'},
-    {k:'4+',label:'4th+',color:'var(--muted)'},
-  ].map(p => {
-    const cnt = s.placements[p.k], pct = ((cnt/total)*100).toFixed(0);
-    return `<div style="margin-bottom:12px">
+  const placementSlices = [
+    {value: s.placements['1']||0,  color:'#F0B429', label:'1st'},
+    {value: s.placements['2']||0,  color:'#3B82F6', label:'2nd'},
+    {value: s.placements['3']||0,  color:'#F97316', label:'3rd'},
+    {value: s.placements['4+']||0, color:'#64748b', label:'4th+'},
+  ];
+  const pTotal = Math.max(1, placementSlices.reduce((a,b) => a+b.value, 0));
+
+  const placementBars = placementSlices.map(({value, color, label}) => {
+    const pct = ((value/pTotal)*100).toFixed(0);
+    return `<div style="margin-bottom:10px">
       <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;margin-bottom:4px">
-        <span>${p.label}</span><span style="color:var(--muted)">${cnt} (${pct}%)</span>
+        <span>${label === '1st' ? '🥇' : label === '2nd' ? '🥈' : label === '3rd' ? '🥉' : '4th+'} ${label}</span>
+        <span style="color:var(--muted)">${value} <span style="opacity:.6">(${pct}%)</span></span>
       </div>
-      <div style="background:var(--border);border-radius:3px;height:6px;overflow:hidden">
-        <div style="width:${pct}%;height:100%;background:${p.color};border-radius:3px;transition:width .5s"></div>
+      <div style="background:var(--border);border-radius:3px;height:7px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;transition:width .6s;opacity:.85"></div>
       </div></div>`;
   }).join('');
 
-  const cMap = {RED:'var(--red)',BLUE:'var(--blue)',GREEN:'var(--green)',YELLOW:'var(--yellow)'};
+  const cHex = {RED:'#E63946', BLUE:'#3B82F6', GREEN:'#22C55E', YELLOW:'#F0B429'};
   const cTotal = Math.max(1, Object.values(s.wild_color_choices||{}).reduce((a,b)=>a+b,0));
-  const colorBars = Object.entries(s.wild_color_choices||{}).map(([col,cnt]) => {
+  const wildSlices = Object.entries(s.wild_color_choices||{}).map(([col,cnt]) =>
+    ({value:cnt, color:cHex[col]||'#64748b', label:col.substring(0,1)}));
+  const wildBars = Object.entries(s.wild_color_choices||{}).map(([col,cnt]) => {
     const pct = ((cnt/cTotal)*100).toFixed(0);
-    return `<div style="margin-bottom:8px">
+    return `<div style="margin-bottom:7px">
       <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;margin-bottom:3px">
-        <span style="color:${cMap[col]||'var(--muted)'}">${col}</span>
+        <span style="color:${cHex[col]||'var(--muted)'}">${col}</span>
         <span style="color:var(--muted)">${cnt} (${pct}%)</span>
       </div>
-      <div style="background:var(--border);border-radius:3px;height:4px;overflow:hidden">
-        <div style="width:${pct}%;height:100%;background:${cMap[col]||'var(--muted)'};border-radius:3px;transition:width .5s"></div>
+      <div style="background:var(--border);border-radius:3px;height:5px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${cHex[col]||'#64748b'};border-radius:3px;transition:width .6s;opacity:.85"></div>
       </div></div>`;
   }).join('');
+
+  const cardTypeEntries = Object.entries(s.card_type_counts||{}).sort((a,b)=>b[1]-a[1]).slice(0,6);
+  const ctColors = {NUMBER:'#3B82F6',SKIP:'#F97316',REVERSE:'#A855F7',DRAW_TWO:'#E63946',WILD:'#F0B429',WILD_DRAW_FOUR:'#EF4444'};
+  const cardBarsItems = cardTypeEntries.map(([t,v]) => ({label:t.replace('_',' ').replace('WILD DRAW','WD4').substring(0,5), value:v, color:ctColors[t]||'#64748b'}));
+
+  const hasCardData = cardTypeEntries.length > 0;
+  const hasWildData = wildSlices.some(s => s.value > 0);
 
   return `
     <div class="card">
-      <div class="card-title">${fmtId(id)} <span style="font-family:var(--mono);font-size:11px;font-weight:400;color:var(--muted)">${s.name||''}</span>
+      <div class="card-title">${fmtId(id)}
         <button class="btn btn-red btn-xs" onclick="resetStats('${id}')">🗑 Reset</button>
       </div>
       <div class="stat-grid">
@@ -1146,21 +1954,178 @@ function renderStats(id, s) {
         <div class="stat-box"><div class="stat-lbl">Cards Played</div><div class="stat-val b">${s.total_cards_played}</div></div>
         <div class="stat-box"><div class="stat-lbl">Cards Drawn</div><div class="stat-val">${s.total_cards_drawn}</div></div>
       </div>
+      ${svgWinLoss(s.wins, s.losses)}
     </div>
+
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-      <div class="card"><div class="card-title">Placements</div>${placements}</div>
-      <div class="card"><div class="card-title">Wild Colors</div>
-        ${colorBars || `<div style="color:var(--muted);font-size:12px">No wild card data yet</div>`}
-        <div style="margin-top:14px">
-          ${[['Cards Played',s.total_cards_played],['Cards Drawn',s.total_cards_drawn],
-             ['UNO Calls',s.total_uno_calls],['Penalties',s.total_penalties]].map(([l,v]) =>
-            `<div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;padding:5px 0;border-bottom:1px solid var(--border)">
-              <span style="color:var(--muted)">${l}</span><span>${v}</span></div>`
-          ).join('')}
+      <!-- Placement chart -->
+      <div class="card">
+        <div class="card-title">Placements</div>
+        <div style="display:flex;align-items:center;gap:16px">
+          <div style="flex-shrink:0">${svgDonut(placementSlices)}</div>
+          <div style="flex:1">${placementBars}</div>
         </div>
       </div>
+
+      <!-- Wild color chart -->
+      <div class="card">
+        <div class="card-title">Wild Color Choices</div>
+        ${hasWildData
+          ? `<div style="display:flex;align-items:center;gap:16px">
+               <div style="flex-shrink:0">${svgDonut(wildSlices)}</div>
+               <div style="flex:1">${wildBars}</div>
+             </div>`
+          : `<div style="color:var(--muted);font-size:12px;margin-top:8px">No wild card data yet</div>`}
+      </div>
     </div>
-    ${s.last_updated ? `<div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-align:right;margin-top:-8px">Updated: ${s.last_updated.substring(0,19)}</div>` : ''}`;
+
+    <!-- Card type bar chart -->
+    <div class="card">
+      <div class="card-title">Card Types Played</div>
+      ${hasCardData
+        ? `<div style="overflow-x:auto;padding:4px 0">
+             ${svgBars(cardBarsItems, 90, Math.max(220, cardBarsItems.length * 38))}
+           </div>
+           <div style="margin-top:10px">
+             ${cardTypeEntries.map(([t,v]) =>
+               `<div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:11px;padding:4px 0;border-bottom:1px solid var(--border)">
+                 <span style="color:${ctColors[t]||'var(--muted)'}">● ${t}</span>
+                 <span>${v}</span>
+               </div>`
+             ).join('')}
+           </div>`
+        : `<div style="color:var(--muted);font-size:12px;margin-top:8px">No card type data yet</div>`}
+    </div>
+
+    <div class="card" style="padding:14px 18px">
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
+        ${[['Cards Played',s.total_cards_played,'b'],['Cards Drawn',s.total_cards_drawn,''],
+           ['UNO Calls',s.total_uno_calls,'y'],['Penalties',s.total_penalties,'r']].map(([l,v,cls]) =>
+          `<div style="text-align:center">
+            <div style="font-family:var(--mono);font-size:22px;font-weight:700" class="${cls}">${v}</div>
+            <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-top:2px">${l}</div>
+          </div>`
+        ).join('')}
+      </div>
+    </div>
+
+    ${s.last_updated ? `<div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-align:right;margin-top:-8px">Updated: ${s.last_updated.substring(0,19)}</div>` : ''}
+    ${renderGameHistoryCharts(s)}`;
+  // Draw charts after DOM insertion (deferred so canvas exists)
+  setTimeout(() => drawHistoryCharts(s), 50);
+  return html;
+}
+
+function renderGameHistoryCharts(s) {
+  const h = s.games_history || [];
+  if (!h.length) return '';
+  return `
+    <div class="card trend-card">
+      <div class="card-title">Game History <span style="font-family:var(--mono);font-size:10px;font-weight:400;color:var(--muted)">last ${h.length} games</span></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Win / Loss Streak</div>
+          <div class="sparkline-wrap"><canvas class="sparkline-canvas" id="chart-wl"></canvas></div>
+        </div>
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Points per Game</div>
+          <div class="sparkline-wrap"><canvas class="sparkline-canvas" id="chart-pts"></canvas></div>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-top:14px">
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Placement Distribution</div>
+          <div class="sparkline-wrap"><canvas class="sparkline-canvas" id="chart-place" style="height:80px"></canvas></div>
+        </div>
+        <div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:1px">Cards Played per Game</div>
+          <div class="sparkline-wrap"><canvas class="sparkline-canvas" id="chart-cards"></canvas></div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function drawHistoryCharts(s) {
+  const h = s.games_history || [];
+  if (!h.length) return;
+
+  const style = getComputedStyle(document.documentElement);
+  const green  = '#22c55e';
+  const red    = '#e63946';
+  const blue   = '#3b82f6';
+  const yellow = '#f0b429';
+  const muted  = style.getPropertyValue('--muted').trim() || '#94a3b8';
+  const border = style.getPropertyValue('--border').trim() || '#2a3343';
+
+  function drawBarChart(canvasId, values, colorFn, maxOverride) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.offsetWidth; const H = canvas.offsetHeight;
+    canvas.width = W; canvas.height = H;
+    ctx.clearRect(0, 0, W, H);
+    if (!values.length) return;
+    const max = maxOverride || Math.max(...values, 1);
+    const barW = Math.max(2, Math.floor((W - values.length) / values.length));
+    const gap  = Math.floor((W - barW * values.length) / Math.max(values.length - 1, 1));
+    values.forEach((v, i) => {
+      const x = i * (barW + gap);
+      const h = Math.round((v / max) * (H - 4));
+      ctx.fillStyle = border;
+      ctx.fillRect(x, 0, barW, H);
+      ctx.fillStyle = colorFn(v, i);
+      ctx.fillRect(x, H - h, barW, h);
+    });
+  }
+
+  function drawLineChart(canvasId, values, color) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    const W = canvas.offsetWidth; const H = canvas.offsetHeight;
+    canvas.width = W; canvas.height = H;
+    ctx.clearRect(0, 0, W, H);
+    if (values.length < 2) return;
+    const max = Math.max(...values, 1);
+    const step = W / (values.length - 1);
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 2;
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    values.forEach((v, i) => {
+      const x = i * step;
+      const y = H - 4 - Math.round((v / max) * (H - 8));
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.stroke();
+    // Fill under
+    ctx.lineTo((values.length-1)*step, H);
+    ctx.lineTo(0, H);
+    ctx.closePath();
+    ctx.fillStyle = color + '22';
+    ctx.fill();
+  }
+
+  // Win/Loss bars
+  drawBarChart('chart-wl', h.map(g => 1), (_, i) => h[i].won ? green : red, 1);
+
+  // Points line
+  drawLineChart('chart-pts', h.map(g => g.points), blue);
+
+  // Placement bars (1=best)
+  drawBarChart('chart-place', h.map(g => Math.max(0, 5 - g.placement)), (v) => {
+    if (v >= 4) return yellow;
+    if (v === 3) return blue;
+    if (v === 2) return muted;
+    return red;
+  }, 4);
+
+  // Cards played line
+  drawLineChart('chart-cards', h.map(g => g.cards_played), yellow);
+}
+
+function _renderStatsOld(id, s) {
+  return '';
 }
 
 
@@ -1170,30 +2135,56 @@ function renderStats(id, s) {
 async function loadConfig() {
   try {
     const c = await api('/config');
-    document.getElementById('g-first').value   = c.bot_first_name || '';
-    document.getElementById('g-last').value    = c.bot_last_name  || '';
-    document.getElementById('g-player').value  = c.player_name    || '';
-    document.getElementById('g-sandbox').checked  = !!c.is_sandbox_mode;
-    document.getElementById('g-rejoin').checked   = c.auto_rejoin !== false;
-    document.getElementById('g-only').checked     = !!c.only_players_mode;
-    document.getElementById('g-debug').checked    = !!c.debug_mode;
-    document.getElementById('g-delay').value   = c.rejoin_delay ?? 3;
-    document.getElementById('g-check').value   = c.room_check_interval ?? 5;
+    document.getElementById('g-first').value  = c.bot_first_name || '';
+    document.getElementById('g-last').value   = c.bot_last_name  || '';
+    document.getElementById('g-player').value = c.player_name    || '';
+    document.getElementById('g-sandbox').checked = !!c.is_sandbox_mode;
+    document.getElementById('g-rejoin').checked  = c.auto_rejoin !== false;
+    document.getElementById('g-only').checked    = !!c.only_players_mode;
+    document.getElementById('g-debug').checked   = !!c.debug_mode;
+    document.getElementById('g-delay').value  = c.rejoin_delay ?? 3;
+    document.getElementById('g-check').value  = c.room_check_interval ?? 5;
+
+    // Populate active strategy selector
+    const sel = document.getElementById('g-active-strat');
+    sel.innerHTML = _strats.length
+      ? _strats.map(s => `<option value="${s.id}" ${s.id === c.active_strategy ? 'selected' : ''}>
+          ${fmtId(s.id)} ${s.id === c.active_strategy ? '★' : ''}</option>`).join('')
+      : `<option value="${c.active_strategy||''}">${c.active_strategy||'—'}</option>`;
   } catch(e) { toast('Could not load config', 'err'); }
 }
 
-async function saveIdentity() {
+async function saveActiveStrategy() {
+  const val = document.getElementById('g-active-strat').value;
+  if (!val) return;
+  try {
+    await api('/strategies/' + val + '/activate', {method:'POST'});
+    toast(`★ Default strategy → ${fmtId(val)}`);
+    await loadStrats();
+    // Update ★ indicators in select
+    const sel = document.getElementById('g-active-strat');
+    [...sel.options].forEach(o => {
+      o.text = o.text.replace(' ★','') + (o.value === val ? ' ★' : '');
+    });
+  } catch(e) { toast('❌ ' + e.message, 'err'); }
+}
+
+// Auto-save identity fields (called onblur)
+async function saveIdentityField() {
   try {
     await api('/config', {method:'PATCH', body:JSON.stringify({
       bot_first_name: document.getElementById('g-first').value.trim(),
       bot_last_name:  document.getElementById('g-last').value.trim(),
       player_name:    document.getElementById('g-player').value.trim(),
     })});
-    toast('✅ Identity saved');
+    toast('✅ Saved', 'ok');
   } catch(e) { toast('❌ ' + e.message, 'err'); }
 }
+// Keep old name as alias so nothing breaks
+const saveIdentity = saveIdentityField;
 
-async function saveBehaviour() {
+// Auto-save behaviour fields (called onchange / onblur)
+async function saveBehaviourField() {
   try {
     await api('/config', {method:'PATCH', body:JSON.stringify({
       is_sandbox_mode:     document.getElementById('g-sandbox').checked,
@@ -1203,9 +2194,10 @@ async function saveBehaviour() {
       rejoin_delay:        parseInt(document.getElementById('g-delay').value)||3,
       room_check_interval: parseInt(document.getElementById('g-check').value)||5,
     })});
-    toast('✅ Behaviour saved');
+    toast('✅ Saved', 'ok');
   } catch(e) { toast('❌ ' + e.message, 'err'); }
 }
+const saveBehaviour = saveBehaviourField;
 
 
 // ═══════════════════════════════════════════════════
@@ -1268,9 +2260,9 @@ async function uploadStrategy() {
 // ═══════════════════════════════════════════════════
 // Live feed — parse log lines into rich feed items
 // ═══════════════════════════════════════════════════
+
 function parseLine(line) {
-  // Classify log lines and extract semantic meaning
-  const ts = (line.match(/^\[(\d{2}:\d{2}:\d{2})\]/) || [])[1] || '';
+  const ts   = (line.match(/^\[(\d{2}:\d{2}:\d{2})\]/) || [])[1] || '';
   const body = line.replace(/^\[\d{2}:\d{2}:\d{2}\]\s*/, '');
 
   if (/🎮 MY TURN/.test(body)) {
@@ -1279,99 +2271,61 @@ function parseLine(line) {
     return {type:'mine', icon:'🎮', main:`My turn — <strong>${hand} cards</strong> in hand, top: <strong>${top||'?'}</strong>`, ts};
   }
   if (/✅ Played/.test(body)) {
-    const card = body.replace('✅ Played ','').trim();
-    _sess.cards++;
-    return {type:'mine', icon:'✅', main:`Played <strong>${card}</strong>`, ts};
+    return {type:'mine', icon:'✅', main:`Played <strong>${body.replace('✅ Played ','').trim()}</strong>`, ts};
   }
-  if (/🃏 Drew \d/.test(body) && !body.includes('drew')) {
-    _sess.cards++;
-    return {type:'mine', icon:'🃏', main:`<strong>${body.replace(/^.*🃏\s*/,'')}</strong>`, ts};
+  if (/🤖 Played/.test(body)) {
+    return {type:'mine', icon:'✅', main:`Played <strong>${body.replace(/^.*🤖 Played:\s*/,'').trim()}</strong>`, ts};
+  }
+  // "🃏 Drew N card(s)" — mine. Must check before opponent draw ("🃏 X drew")
+  if (/🃏 Drew/.test(body) && !/drew/.test(body)) {
+    return {type:'mine', icon:'🃏', main:`<strong>${body.replace(/^.*🃏\s*/,'').trim()}</strong>`, ts};
   }
   if (/📣 Called UNO!/.test(body)) {
-    _sess.uno++;
     return {type:'mine', icon:'📣', main:`<strong>Called UNO!</strong>`, ts};
   }
   if (/⚠️.*PENALTY/.test(body)) {
-    _sess.pen++;
     const desc = body.replace(/^.*PENALTY.*│\s*/,'').trim();
     return {type:'penalty', icon:'⚠️', main:`Penalty: <strong>${desc||'rule violation'}</strong>`, ts};
   }
   if (/⏳.*'s turn/.test(body)) {
-    const name = (body.match(/⏳\s+([^']+)'s turn/) || [])[1];
+    const name  = (body.match(/⏳\s+([^']+)'s turn/) || [])[1];
     const cards = (body.match(/(\d+) cards in hand/) || [])[1];
     return {type:'opponent', icon:'⏳', main:`<strong>${name||'Opponent'}'s</strong> turn — ${cards||'?'} cards`, ts};
   }
-  if (/🎴.*played/.test(body)) {
-    const rest = body.replace(/^.*🎴\s*/,'');
-    return {type:'opponent', icon:'🎴', main:rest, ts};
-  }
-  if (/🃏.*drew/.test(body)) {
-    const rest = body.replace(/^.*🃏\s*/,'');
-    return {type:'opponent', icon:'🃏', main:rest, ts};
-  }
-  if (/📣.*called UNO/.test(body)) {
-    const rest = body.replace(/^.*📣\s*/,'');
-    return {type:'opponent', icon:'📣', main:`<strong>${rest}</strong>`, ts};
-  }
+  if (/🎴.*played/.test(body)) return {type:'opponent', icon:'🎴', main:body.replace(/^.*🎴\s*/,''), ts};
+  if (/🃏.*drew/.test(body))   return {type:'opponent', icon:'🃏', main:body.replace(/^.*🃏\s*/,''), ts};
+  if (/📣.*called UNO/.test(body)) return {type:'opponent', icon:'📣', main:`<strong>${body.replace(/^.*📣\s*/,'')}</strong>`, ts};
   if (/🏆 WE WON/.test(body)) {
-    _sess.wins++; _sess.games++;
-    updateSessionStats();
     const score = (body.match(/Score:\s*(\d+)/) || [])[1];
     return {type:'win', icon:'🏆', main:`<strong>WE WON!</strong>${score ? ` — ${score} pts` : ''}`, ts};
   }
   if (/😔 Game over/.test(body)) {
-    _sess.losses++; _sess.games++;
-    updateSessionStats();
-    const rest = body.replace(/^.*😔\s*/,'');
-    return {type:'loss', icon:'😔', main:rest, ts};
+    return {type:'loss', icon:'😔', main:body.replace(/^.*😔\s*/,''), ts};
   }
   if (/🃏 GAME STARTED/.test(body)) {
     const players = (body.match(/Players:\s*(.+)$/) || [])[1];
     return {type:'system', icon:'🃏', main:`Game started — <strong>${players||'?'}</strong>`, ts};
   }
-  if (/⏰/.test(body)) {
-    return {type:'system', icon:'⏰', main:body.replace(/^.*⏰\s*/,''), ts};
-  }
-  if (/▶ Bot started/.test(body)) {
-    _sess = {games:0,wins:0,losses:0,cards:0,uno:0,pen:0};
-    updateSessionStats();
-    return {type:'system', icon:'▶', main:`<strong>Bot started</strong>`, ts};
-  }
-  if (/⏹ Bot stopped/.test(body) || /🏁 SESSION COMPLETE/.test(body)) {
-    return {type:'system', icon:'⏹', main:`<strong>Bot stopped</strong>`, ts};
-  }
-  if (/🔌 Connected/.test(body)) {
-    return {type:'system', icon:'🔌', main:'Connected to game server', ts};
-  }
+  if (/⏰/.test(body)) return {type:'system', icon:'⏰', main:body.replace(/^.*⏰\s*/,''), ts};
+  if (/▶ Bot started/.test(body)) return {type:'system', icon:'▶', main:`<strong>Bot started</strong>`, ts};
+  if (/⏹ Bot stopped/.test(body)) return {type:'system', icon:'⏹', main:`<strong>Bot stopped</strong>`, ts};
+  if (/🔌 Connected/.test(body)) return {type:'system', icon:'🔌', main:'Connected to game server', ts};
   if (/🚪 Joined room/.test(body)) {
     const rid = (body.match(/room\s+([a-f0-9-]{8,})/) || [])[1];
     return {type:'system', icon:'🚪', main:`Joined room${rid ? ` <strong>${rid.substring(0,8)}…</strong>` : ''}`, ts};
   }
-  // Default — only show lines with emojis (suppress pure noise)
   const hasEmoji = /[\u{1F000}-\u{1FFFF}✅⚠️🔌🎮🃏📣]/u.test(body);
   if (!hasEmoji) return null;
   return {type:'system', icon:'📡', main:body, ts};
-}
-
-function updateSessionStats() {
-  document.getElementById('sess-games').textContent   = _sess.games;
-  document.getElementById('sess-wins').textContent    = _sess.wins;
-  document.getElementById('sess-losses').textContent  = _sess.losses;
-  document.getElementById('sess-cards').textContent   = _sess.cards;
-  document.getElementById('sess-uno').textContent     = _sess.uno;
-  document.getElementById('sess-pen').textContent     = _sess.pen;
 }
 
 function addFeedItem(item) {
   if (!item) return;
   _feedItems.push(item);
   if (_feedItems.length > MAX_FEED) _feedItems.shift();
-
   const body = document.getElementById('feed-body');
-  // Remove empty placeholder
   const empty = body.querySelector('.feed-empty');
   if (empty) empty.remove();
-
   const el = document.createElement('div');
   el.className = `feed-item ${item.type}`;
   el.innerHTML = `
@@ -1381,14 +2335,9 @@ function addFeedItem(item) {
       <div class="feed-time">${item.ts}</div>
     </div>`;
   body.appendChild(el);
-
-  // Trim DOM if too long
   while (body.children.length > MAX_FEED) body.removeChild(body.firstChild);
-
   document.getElementById('feed-count').textContent = `${_feedItems.length} events`;
-  if (document.getElementById('feed-scroll').checked) {
-    body.scrollTop = body.scrollHeight;
-  }
+  if (document.getElementById('feed-scroll').checked) body.scrollTop = body.scrollHeight;
 }
 
 function clearFeed() {
@@ -1397,7 +2346,105 @@ function clearFeed() {
   document.getElementById('feed-count').textContent = '';
 }
 
+// ═══════════════════════════════════════════════════
+// Live stats polling (polls /api/live every 1.5s)
+// ═══════════════════════════════════════════════════
+let _liveGameStart = null;
 
+async function pollLiveStats() {
+  try {
+    const snap = await api('/live');
+    renderLiveStats(snap);
+  } catch(e) {
+    // Bot not running — try to show lifetime stats for active strategy
+    const strat = _status?.active_strategy;
+    if (strat && strat !== '—') {
+      try {
+        const s = await api(`/strategies/${strat}/stats`);
+        // Wrap in live_snapshot format with no active game
+        renderLiveStats({ ...s, live_game: null, strategy_id: strat });
+      } catch(_) {
+        renderLiveStats(null);
+      }
+    } else {
+      renderLiveStats(null);
+    }
+  }
+}
+
+function renderLiveStats(snap) {
+  const live = snap?.live_game;
+  const active = live?.active;
+
+  // Header dot
+  const dot = document.getElementById('live-dot');
+  const inactive = document.getElementById('live-inactive');
+
+  if (active) {
+    dot.className = 'dot running';
+    inactive.style.display = 'none';
+    if (!_liveGameStart) _liveGameStart = live.started_at;
+  } else {
+    dot.className = 'dot stopped';
+    _liveGameStart = null;
+    inactive.style.display = 'block';
+  }
+
+  // Timer
+  const timerEl = document.getElementById('live-timer');
+  if (active && live.started_at) {
+    const elapsed = Math.floor((Date.now() - new Date(live.started_at).getTime()) / 1000);
+    timerEl.textContent = fmtUp(elapsed);
+  } else {
+    timerEl.textContent = '';
+  }
+
+  // Strategy badge
+  const strat = snap?.strategy_id || _status?.active_strategy || '—';
+  document.getElementById('live-strategy-badge').textContent = strat ? `· ${fmtId(strat)}` : '';
+  document.getElementById('live-lifetime-strat').textContent = strat ? fmtId(strat) : '';
+
+  // Live game counters
+  document.getElementById('live-hand').textContent    = active ? (live.current_hand_size ?? '—') : '—';
+  document.getElementById('live-cards-p').textContent = active ? live.cards_played  : 0;
+  document.getElementById('live-cards-d').textContent = active ? live.cards_drawn   : 0;
+  document.getElementById('live-uno').textContent     = active ? live.uno_calls     : 0;
+  document.getElementById('live-pen').textContent     = active ? live.penalties     : 0;
+  document.getElementById('live-turns').textContent   = active ? live.turns         : 0;
+
+  if (!snap) return;
+
+  // Lifetime stats (always show — merged with live delta when game is active)
+  // snap may come from /api/live (has live_game) or /api/strategies/x/stats (no live_game)
+  document.getElementById('lt-games').textContent  = snap.games_played;
+  document.getElementById('lt-wr').textContent     = snap.win_rate?.toFixed(1) + '%';
+  document.getElementById('lt-wins').textContent   = snap.wins;
+  document.getElementById('lt-losses').textContent = snap.losses;
+  document.getElementById('lt-cards').textContent  = snap.total_cards_played;
+  document.getElementById('lt-uno').textContent    = snap.total_uno_calls;
+  document.getElementById('lt-pen').textContent    = snap.total_penalties;
+  document.getElementById('lt-avg').textContent    = snap.avg_points_per_game?.toFixed(1) ?? '0';
+
+  // Placement bars
+  const p = snap.placements || {};
+  const total = Math.max(1, (p['1']||0)+(p['2']||0)+(p['3']||0)+(p['4+']||0));
+  const bars = [
+    {k:'1', label:'🥇 1st', color:'var(--yellow)'},
+    {k:'2', label:'🥈 2nd', color:'var(--blue)'},
+    {k:'3', label:'🥉 3rd', color:'var(--orange)'},
+    {k:'4+',label:'4th+',  color:'var(--muted)'},
+  ].map(({k,label,color}) => {
+    const cnt = p[k]||0, pct = ((cnt/total)*100).toFixed(0);
+    return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);width:50px">${label}</div>
+      <div style="flex:1;background:var(--border);border-radius:3px;height:5px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:${color};border-radius:3px;transition:width .4s"></div>
+      </div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);width:28px;text-align:right">${cnt}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('lt-placements').innerHTML = bars;
+}
 // ═══════════════════════════════════════════════════
 // Raw log polling — drives both log view and feed
 // ═══════════════════════════════════════════════════
@@ -1477,11 +2524,37 @@ document.querySelectorAll('.overlay').forEach(o => {
 // ═══════════════════════════════════════════════════
 // Init
 // ═══════════════════════════════════════════════════
+function switchGuideTab(tab) {
+  ['structure','api','events','cards','prompt'].forEach(t => {
+    document.getElementById('gtab-' + t).classList.toggle('active', t === tab);
+    document.getElementById('gpanel-' + t).classList.toggle('hidden', t !== tab);
+  });
+}
+
+function copyPrompt() {
+  const txt = document.getElementById('ai-prompt-text').textContent;
+  navigator.clipboard.writeText(txt).then(
+    () => toast('📋 Prompt copied to clipboard'),
+    () => {
+      // Fallback: select text
+      const el = document.getElementById('ai-prompt-text');
+      const sel = window.getSelection();
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      sel.removeAllRanges();
+      sel.addRange(range);
+      toast('⌨ Text selected — press Ctrl+C to copy', 'info');
+    }
+  );
+}
+
 async function init() {
   await pollStatus();
   await loadStrats();
-  setInterval(pollStatus, 3000);
-  setInterval(pollLog, 1500);
+  setInterval(pollStatus,    3000);
+  setInterval(pollLog,       1500);
+  setInterval(pollLiveStats, 1500);
+  pollLiveStats();
 }
 init();
 </script>

@@ -9,6 +9,7 @@ from api.socket_listener import SocketListener
 from core.room_manager import RoomManager
 from core.state import save_state
 from strategies.loader import load_strategy
+from strategies.stats import StrategyStats
 from config.settings import (
     ACTIVE_STRATEGY,
     AUTO_REJOIN,
@@ -153,8 +154,8 @@ def start_bot():
 
         strategy = load_strategy(strategy_name)
         current_strategy_name = strategy_name
+        stats_tracker = StrategyStats(current_strategy_name)
         print(f"✅ Strategy loaded: {strategy.__class__.__name__}\n", flush=True)
-
 
         game_count = 0
 
@@ -183,8 +184,8 @@ def start_bot():
                         only_players=only_players
                     )
 
-                else:  # auto / quick
-                    room_id, player_id = room_manager.join_or_create_room(
+                else:  # auto — always create a fresh room
+                    room_id, player_id = room_manager.create_and_join_room(
                         only_players=only_players
                     )
 
@@ -194,7 +195,12 @@ def start_bot():
                 if should_exit:
                     break
                 if auto_rejoin:
-                    room_id, player_id = room_manager.rejoin_room(delay=rejoin_delay)
+                    # auto mode always creates a new room; wait mode polls forever
+                    room_id, player_id = room_manager.rejoin_room(
+                        delay=rejoin_delay,
+                        force_create=(mode == "auto"),
+                        mode=mode,
+                    )
                 elif _UI_MODE:
                     # In UI mode without auto-rejoin, stop after one game
                     print("🏁 Auto-rejoin disabled — stopping after game.", flush=True)
@@ -224,6 +230,7 @@ def start_bot():
                         if new_strategy:
                             strategy = load_strategy(new_strategy)
                             current_strategy_name = new_strategy
+                            stats_tracker = StrategyStats(current_strategy_name)
                             set_setting("active_strategy", new_strategy)
 
                     room_id, player_id = room_manager.rejoin_room(delay=2)
@@ -239,7 +246,7 @@ def start_bot():
             print(f"   Strategy: {current_strategy_name}", flush=True)
 
 
-            listener = SocketListener(room_id, player_id, strategy)
+            listener = SocketListener(room_id, player_id, strategy, stats_tracker=stats_tracker)
             listener.connect()
 
             print("\n🤖 Bot active — waiting for game events", flush=True)

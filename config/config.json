@@ -1,9 +1,25 @@
 {
-  "active_strategy": "adaptive_bot",
+  "active_strategy": "gpt_base_bot",
   "strategies": {
     "adaptive_bot": {
       "bot_first_name": "Test",
       "bot_last_name": "Bot"
+    },
+    "claude_base_bot": {
+      "bot_first_name": "claude",
+      "bot_last_name": "base"
+    },
+    "claude_nero_bot": {
+      "bot_first_name": "WorldClass",
+      "bot_last_name": "UnoBot"
+    },
+    "gemini_base_bot": {
+      "bot_first_name": "gemini",
+      "bot_last_name": "base"
+    },
+    "gpt_base_bot": {
+      "bot_first_name": "gpt",
+      "bot_last_name": "base"
     }
   },
   "bot_first_name": "Global",

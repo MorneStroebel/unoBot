@@ -1,32 +1,35 @@
 """
 strategies/stats.py — Per-strategy statistics tracker.
 
-Each strategy stores its own stats in a `stats.json` file inside its folder.
-This module provides a clean API for reading and writing those stats, plus a
-convenience class for loading any strategy's stats by name.
+Architecture
+------------
+Stats are split into two layers:
 
-Usage:
-    from strategies.stats import StrategyStats
+  1. Persisted stats  (strategies/<name>/stats.json)
+     Written ONCE when a game ends.  Never touched mid-game.
 
-    # Read stats for a strategy
-    s = StrategyStats("adaptive_bot")
-    print(s.win_rate)
-    print(s.summary())
+  2. Live state       (strategies/<name>/live_state.json)
+     Written on every action so the UI server (separate process) can read it.
+     Deleted / reset when a new game starts or after game ends.
+     Small file (~300 bytes), writes are fast.
 
-    # The tracker is used internally by strategies:
-    tracker = StrategyStats("adaptive_bot")
-    tracker.record_game(won=True, placement=1, points=0, cards_played=12, cards_drawn=2)
+The key insight: bot and UI server are separate OS processes.
+Module-level dicts are NOT shared.  The only cross-process channel is
+the filesystem.
 """
 
 import json
 import os
 import threading
 from datetime import datetime
-from typing import Optional, Dict, Any
-
+from typing import Optional, Dict
 
 _STRATEGIES_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
+# ── Schema helpers ────────────────────────────────────────────────────────────
+
+_MAX_HISTORY = 50   # number of recent games to keep for trend charts
 
 def _default_stats() -> Dict:
     return {
@@ -45,213 +48,300 @@ def _default_stats() -> Dict:
         "card_type_counts": {},
         "wild_color_choices": {"RED": 0, "BLUE": 0, "GREEN": 0, "YELLOW": 0},
         "last_updated": None,
+        "games_history": [],   # list of {won, placement, points, cards_played, timestamp}
     }
 
 
+def _default_live() -> Dict:
+    return {
+        "active": False,
+        "strategy_name": None,
+        "room_id": None,
+        "player_id": None,
+        "started_at": None,
+        "cards_played": 0,
+        "cards_drawn": 0,
+        "uno_calls": 0,
+        "penalties": 0,
+        "turns": 0,
+        "current_hand_size": 0,
+        "card_type_counts": {},
+        "wild_color_choices": {"RED": 0, "BLUE": 0, "GREEN": 0, "YELLOW": 0},
+    }
+
+
+# ── StrategyStats ─────────────────────────────────────────────────────────────
+
 class StrategyStats:
     """
-    Read/write statistics for a single strategy.
+    Per-strategy stats tracker.
 
-    The stats are stored in:
-        strategies/<strategy_name>/stats.json
-
-    This class is both the tracker used during a game AND the read API
-    you can use externally to inspect stats:
-
-        s = StrategyStats("adaptive_bot")
-        print(s.win_rate)          # -> float (percentage)
-        print(s.games_played)      # -> int
-        print(s.summary())         # -> formatted string
-        print(s.as_dict())         # -> raw stats dict
+    Used in two modes:
+      • Bot process  — calls start_game / record_* / end_game
+      • Server process — calls live_snapshot() to read current state
+    Both modes communicate via two small JSON files on disk.
     """
 
     def __init__(self, strategy_name: str):
         self.strategy_name = strategy_name
         self._lock = threading.Lock()
-        self._stats_path = os.path.join(_STRATEGIES_DIR, strategy_name, "stats.json")
-        self._data = self._load()
+        strat_dir = os.path.join(_STRATEGIES_DIR, strategy_name)
+        os.makedirs(strat_dir, exist_ok=True)
+        self._stats_path = os.path.join(strat_dir, "stats.json")
+        self._live_path  = os.path.join(strat_dir, "live_state.json")
+        self._data = self._load_stats()
+        # In-process cache of live state (only meaningful in bot process)
+        self._live_cache: Dict = _default_live()
 
-    # ------------------------------------------------------------------
-    # Persistence
-    # ------------------------------------------------------------------
+    # ── Disk helpers ──────────────────────────────────────────────────────────
 
-    def _load(self) -> Dict:
+    def _load_stats(self) -> Dict:
         if os.path.exists(self._stats_path):
             try:
-                with open(self._stats_path, "r") as f:
+                with open(self._stats_path) as f:
                     loaded = json.load(f)
                 base = _default_stats()
                 base.update(loaded)
-                # Back-fill any missing color keys
-                for color in ("RED", "BLUE", "GREEN", "YELLOW"):
-                    base["wild_color_choices"].setdefault(color, 0)
-                    base["placements"].setdefault("1", 0)
-                    base["placements"].setdefault("2", 0)
-                    base["placements"].setdefault("3", 0)
-                    base["placements"].setdefault("4+", 0)
+                for c in ("RED", "BLUE", "GREEN", "YELLOW"):
+                    base["wild_color_choices"].setdefault(c, 0)
+                for p in ("1", "2", "3", "4+"):
+                    base["placements"].setdefault(p, 0)
                 return base
             except Exception as e:
-                print(f"⚠️  Could not load stats for '{self.strategy_name}': {e}")
+                print(f"⚠️  Could not load stats for '{self.strategy_name}': {e}", flush=True)
         return _default_stats()
 
-    def _save(self):
+    def _save_stats(self):
+        """Write lifetime stats to disk.  Called only at end_game()."""
         self._data["last_updated"] = datetime.now().isoformat()
         try:
-            os.makedirs(os.path.dirname(self._stats_path), exist_ok=True)
             with open(self._stats_path, "w") as f:
                 json.dump(self._data, f, indent=2)
         except Exception as e:
-            print(f"❌ Could not save stats for '{self.strategy_name}': {e}")
+            print(f"❌ Could not save stats for '{self.strategy_name}': {e}", flush=True)
 
-    # ------------------------------------------------------------------
-    # Write API (used by strategies)
-    # ------------------------------------------------------------------
+    def _write_live(self):
+        """Write live cache to disk so the server process can read it."""
+        try:
+            with open(self._live_path, "w") as f:
+                json.dump(self._live_cache, f)
+        except Exception as e:
+            print(f"⚠️  Could not write live_state: {e}", flush=True)
 
-    def record_game(
-        self,
-        won: bool,
-        placement: int,
-        points: int,
-        cards_played: int = 0,
-        cards_drawn: int = 0,
-        uno_calls: int = 0,
-        penalties: int = 0,
-        card_type_counts: Optional[Dict[str, int]] = None,
-        wild_color_choices: Optional[Dict[str, int]] = None,
-    ):
+    def _read_live_from_disk(self) -> Dict:
+        """Read live state written by the bot process (used by server process)."""
+        if os.path.exists(self._live_path):
+            try:
+                with open(self._live_path) as f:
+                    return json.load(f)
+            except Exception:
+                pass
+        return _default_live()
+
+    def _clear_live(self):
+        """Reset live cache and delete the live state file."""
+        self._live_cache = _default_live()
+        try:
+            if os.path.exists(self._live_path):
+                os.remove(self._live_path)
+        except Exception:
+            pass
+
+    # ── Game lifecycle (called by bot process) ────────────────────────────────
+
+    def start_game(self, room_id: str, player_id: str, strategy_name: str):
+        """Start tracking a new game.  Resets live accumulator."""
+        self._live_cache = _default_live()
+        self._live_cache.update({
+            "active": True,
+            "room_id": room_id,
+            "player_id": player_id,
+            "strategy_name": strategy_name,
+            "started_at": datetime.now().isoformat(),
+        })
+        self._write_live()
+        print(f"📊 Stats tracking started (strategy={strategy_name})", flush=True)
+
+    def end_game(self, won: bool, placement: int, points: int):
         """
-        Record the outcome of a completed game.
-
-        Args:
-            won:               True if the strategy won.
-            placement:         Finishing position (1 = first place).
-            points:            Points earned this game.
-            cards_played:      Number of cards played this game.
-            cards_drawn:       Number of cards drawn this game.
-            uno_calls:         Number of UNO calls this game.
-            penalties:         Number of penalties received this game.
-            card_type_counts:  Dict mapping card type -> count played this game.
-            wild_color_choices: Dict mapping color -> count chosen this game.
+        Merge live accumulator into lifetime stats and write stats.json once.
+        Clears the live state file so the UI shows no active game.
         """
+        live = self._live_cache
         with self._lock:
             d = self._data
             d["games_played"] += 1
-            if won:
-                d["wins"] += 1
-            else:
-                d["losses"] += 1
+            d["wins"]   += 1 if won else 0
+            d["losses"] += 0 if won else 1
             d["total_points"] += points
             if points > d["best_game_points"]:
                 d["best_game_points"] = points
-
-            placement_key = str(placement) if placement <= 3 else "4+"
-            d["placements"][placement_key] = d["placements"].get(placement_key, 0) + 1
-
-            # Derived fields
-            d["win_rate"] = (d["wins"] / d["games_played"]) * 100
+            pk = str(placement) if placement <= 3 else "4+"
+            d["placements"][pk] = d["placements"].get(pk, 0) + 1
+            d["win_rate"]            = (d["wins"] / d["games_played"]) * 100
             d["avg_points_per_game"] = d["total_points"] / d["games_played"]
+            d["total_cards_played"] += live.get("cards_played", 0)
+            d["total_cards_drawn"]  += live.get("cards_drawn",  0)
+            d["total_uno_calls"]    += live.get("uno_calls",    0)
+            d["total_penalties"]    += live.get("penalties",    0)
+            for ct, cnt in live.get("card_type_counts", {}).items():
+                d["card_type_counts"][ct] = d["card_type_counts"].get(ct, 0) + cnt
+            for color, cnt in live.get("wild_color_choices", {}).items():
+                if color in d["wild_color_choices"]:
+                    d["wild_color_choices"][color] += cnt
+            # Append to rolling game history (capped at _MAX_HISTORY)
+            d["games_history"] = (d.get("games_history") or []) + [{
+                "won":          won,
+                "placement":    placement,
+                "points":       points if won else 0,
+                "cards_played": live.get("cards_played", 0),
+                "timestamp":    datetime.now().isoformat(),
+            }]
+            if len(d["games_history"]) > _MAX_HISTORY:
+                d["games_history"] = d["games_history"][-_MAX_HISTORY:]
+            self._save_stats()          # ← single disk write for lifetime stats
 
-            # Action totals
+        self._clear_live()              # ← delete live_state.json, free memory
+        self._data = self._load_stats() # ← reload so as_dict() is fresh
+        result_str = f"{'WIN' if won else 'LOSS'} #{placement} {points}pts"
+        print(f"📊 Stats saved — {result_str}", flush=True)
+
+    # ── In-game action recording (bot process only) ───────────────────────────
+
+    def record_card_played(self, card: dict, wild_color: Optional[str] = None):
+        with self._lock:
+            self._live_cache["cards_played"] += 1
+            self._live_cache["turns"] += 1
+            ct = card.get("type", "UNKNOWN")
+            self._live_cache["card_type_counts"][ct] = \
+                self._live_cache["card_type_counts"].get(ct, 0) + 1
+            if wild_color and wild_color in self._live_cache["wild_color_choices"]:
+                self._live_cache["wild_color_choices"][wild_color] += 1
+        self._write_live()
+
+    def record_card_drawn(self):
+        with self._lock:
+            self._live_cache["cards_drawn"] += 1
+            self._live_cache["turns"] += 1
+        self._write_live()
+
+    def record_uno_call(self):
+        with self._lock:
+            self._live_cache["uno_calls"] += 1
+        self._write_live()
+
+    def record_penalty(self):
+        with self._lock:
+            self._live_cache["penalties"] += 1
+        self._write_live()
+
+    def record_hand_size(self, size: int):
+        with self._lock:
+            self._live_cache["current_hand_size"] = size
+        self._write_live()
+
+    # ── Read API (both processes) ─────────────────────────────────────────────
+
+    def live_snapshot(self) -> Dict:
+        """
+        Return lifetime stats merged with current live game data.
+        Reads live_state.json from disk — safe to call from server process.
+        No memory leaks: live data is capped to a single small JSON file.
+        """
+        # Reload persisted stats fresh from disk every call (server process
+        # does not keep a long-lived instance, so this is always up to date)
+        persisted = self._load_stats()
+
+        snap = dict(persisted)
+        snap["card_type_counts"]   = dict(snap.get("card_type_counts", {}))
+        snap["wild_color_choices"] = dict(snap.get("wild_color_choices", {}))
+        snap["placements"]         = dict(snap.get("placements", {}))
+
+        live = self._read_live_from_disk()
+        snap["live_game"] = live
+
+        if live.get("active"):
+            snap["total_cards_played"] += live.get("cards_played", 0)
+            snap["total_cards_drawn"]  += live.get("cards_drawn",  0)
+            snap["total_uno_calls"]    += live.get("uno_calls",    0)
+            snap["total_penalties"]    += live.get("penalties",    0)
+            for ct, cnt in live.get("card_type_counts", {}).items():
+                snap["card_type_counts"][ct] = \
+                    snap["card_type_counts"].get(ct, 0) + cnt
+            for color, cnt in live.get("wild_color_choices", {}).items():
+                if color in snap["wild_color_choices"]:
+                    snap["wild_color_choices"][color] += cnt
+
+        return snap
+
+    def reset(self):
+        """Wipe all stats and live state for this strategy."""
+        with self._lock:
+            self._data = _default_stats()
+            self._save_stats()
+        self._clear_live()
+
+    # ── Legacy shim (kept for compatibility) ──────────────────────────────────
+
+    def record_game(self, won, placement, points,
+                    cards_played=0, cards_drawn=0, uno_calls=0, penalties=0,
+                    card_type_counts=None, wild_color_choices=None):
+        with self._lock:
+            d = self._data
+            d["games_played"] += 1
+            d["wins"]   += 1 if won else 0
+            d["losses"] += 0 if won else 1
+            d["total_points"] += points
+            if points > d["best_game_points"]:
+                d["best_game_points"] = points
+            pk = str(placement) if placement <= 3 else "4+"
+            d["placements"][pk] = d["placements"].get(pk, 0) + 1
+            d["win_rate"]            = (d["wins"] / d["games_played"]) * 100
+            d["avg_points_per_game"] = d["total_points"] / d["games_played"]
             d["total_cards_played"] += cards_played
             d["total_cards_drawn"]  += cards_drawn
             d["total_uno_calls"]    += uno_calls
             d["total_penalties"]    += penalties
-
-            # Card type breakdown
-            for card_type, count in (card_type_counts or {}).items():
-                d["card_type_counts"][card_type] = (
-                    d["card_type_counts"].get(card_type, 0) + count
-                )
-
-            # Wild color choices
-            for color, count in (wild_color_choices or {}).items():
+            for ct, cnt in (card_type_counts or {}).items():
+                d["card_type_counts"][ct] = d["card_type_counts"].get(ct, 0) + cnt
+            for color, cnt in (wild_color_choices or {}).items():
                 if color in d["wild_color_choices"]:
-                    d["wild_color_choices"][color] += count
+                    d["wild_color_choices"][color] += cnt
+            self._save_stats()
 
-            self._save()
-
-    def reset(self):
-        """Wipe all stats for this strategy."""
-        with self._lock:
-            self._data = _default_stats()
-            self._save()
-
-    # ------------------------------------------------------------------
-    # Read API (use externally to inspect any strategy)
-    # ------------------------------------------------------------------
+    # ── Properties ────────────────────────────────────────────────────────────
 
     @property
-    def games_played(self) -> int:
-        return self._data["games_played"]
-
+    def games_played(self): return self._data["games_played"]
     @property
-    def wins(self) -> int:
-        return self._data["wins"]
-
+    def wins(self): return self._data["wins"]
     @property
-    def losses(self) -> int:
-        return self._data["losses"]
-
+    def losses(self): return self._data["losses"]
     @property
-    def win_rate(self) -> float:
-        """Win rate as a percentage (0–100)."""
-        return round(self._data["win_rate"], 2)
-
+    def win_rate(self): return round(self._data["win_rate"], 2)
     @property
-    def avg_points_per_game(self) -> float:
-        return round(self._data["avg_points_per_game"], 2)
-
+    def avg_points_per_game(self): return round(self._data["avg_points_per_game"], 2)
     @property
-    def total_points(self) -> int:
-        return self._data["total_points"]
-
+    def total_points(self): return self._data["total_points"]
     @property
-    def best_game_points(self) -> int:
-        return self._data["best_game_points"]
-
+    def best_game_points(self): return self._data["best_game_points"]
     @property
-    def placements(self) -> Dict[str, int]:
-        return dict(self._data["placements"])
-
-    @property
-    def draw_rate(self) -> float:
-        """Average cards drawn per card played (0 if no cards played)."""
-        played = self._data["total_cards_played"]
-        drawn  = self._data["total_cards_drawn"]
-        if played == 0:
-            return 0.0
-        return round(drawn / played, 2)
+    def placements(self): return dict(self._data["placements"])
 
     def as_dict(self) -> Dict:
-        """Return the raw stats dict (a copy)."""
         return dict(self._data)
 
     def summary(self) -> str:
-        """Return a human-readable summary string."""
         d = self._data
         p = d["placements"]
-        lines = [
+        return "\n".join([
             f"Strategy: {self.strategy_name}",
-            f"  Games:       {d['games_played']}  (W: {d['wins']}  L: {d['losses']})",
-            f"  Win Rate:    {d['win_rate']:.1f}%",
-            f"  Points:      total={d['total_points']}  avg={d['avg_points_per_game']:.1f}  best={d['best_game_points']}",
-            f"  Placements:  1st={p['1']}  2nd={p['2']}  3rd={p['3']}  4th+={p['4+']}",
-            f"  Cards:       played={d['total_cards_played']}  drawn={d['total_cards_drawn']}",
-            f"  UNO Calls:   {d['total_uno_calls']}  Penalties: {d['total_penalties']}",
-        ]
-        if d["card_type_counts"]:
-            breakdown = "  ".join(f"{k}={v}" for k, v in sorted(d["card_type_counts"].items()))
-            lines.append(f"  Card Types:  {breakdown}")
-        colors = d["wild_color_choices"]
-        if any(colors.values()):
-            color_str = "  ".join(f"{k}={v}" for k, v in colors.items())
-            lines.append(f"  Wild Colors: {color_str}")
-        if d["last_updated"]:
-            lines.append(f"  Last Update: {d['last_updated'][:19]}")
-        return "\n".join(lines)
+            f"  Games: {d['games_played']} (W:{d['wins']} L:{d['losses']})",
+            f"  Win Rate: {d['win_rate']:.1f}%",
+            f"  Cards: played={d['total_cards_played']} drawn={d['total_cards_drawn']}",
+            f"  UNO={d['total_uno_calls']} Penalties={d['total_penalties']}",
+        ])
 
-    def __repr__(self) -> str:
-        return (
-            f"<StrategyStats '{self.strategy_name}' "
-            f"games={self.games_played} win_rate={self.win_rate}%>"
-        )
+    def __repr__(self):
+        return (f"<StrategyStats '{self.strategy_name}' "
+                f"games={self.games_played} wr={self.win_rate}%>")

@@ -6,10 +6,11 @@ Designed to be read directly in a web app.
 
 JSON structure:
 {
-  "live":    "Latest status sentence — updates every turn",
-  "feed":    ["Most recent line", ...],   // last 200 lines, newest at end
-  "session": {"games": N, "wins": N, "win_rate": "X%"},
-  "lifetime":{"games": N, "wins": N, "win_rate": "X%"}
+  "live":     "Latest status sentence — updates every turn",
+  "feed":     ["Line 1", "Line 2", ...],   // current game only, clears each game
+  "game":     { "turns": N, "draws": N, "actions": N, "w4": N, "targeted": N,
+                "faults": ["FAULT_CODE", ...], "result": "won/2nd/3rd/4th" },
+  "lifetime": { "games": N, "wins": N, "win_rate": "X%", "losses": N }
 }
 """
 
@@ -34,7 +35,7 @@ def _find_bot_dir() -> str:
     return os.getcwd()
 
 TELEMETRY_FILE = os.path.join(_find_bot_dir(), "telemetry.json")
-MAX_FEED       = 200
+MAX_FEED       = 500
 
 
 # ---------------------------------------------------------------------------
@@ -43,34 +44,36 @@ MAX_FEED       = 200
 
 class Telemetry:
     def __init__(self):
+        self._live           = "Bot initialising..."
         self._feed:          List[str] = []
-        self._session_games  = 0
-        self._session_wins   = 0
         self._lifetime_games = 0
         self._lifetime_wins  = 0
-        self._live           = "Bot initialising..."
-        self._init_cur_game(0)
+
+        # Current game stats — reset each game_start
+        self._cur_turns    = 0
+        self._cur_draws    = 0
+        self._cur_actions  = 0
+        self._cur_w4       = 0
+        self._cur_targeted = 0
+        self._cur_faults:    List[str]  = []
+        self._cur_nn_scores: List[float] = []
+        self._cur_result   = "in progress"
+
         self._load_lifetime()
         self._emit(
-            f"ClaudeNeroBot started. "
-            f"Lifetime record: {self._lifetime_wins} wins from {self._lifetime_games} games."
+            f"ClaudeNeroBot loaded. "
+            f"Lifetime: {self._lifetime_wins} wins from {self._lifetime_games} games."
         )
 
-    def _init_cur_game(self, game_num: int):
-        """Reset per-game accumulators. Safe to call any time."""
-        self._cur_game_num   = game_num
-        self._cur_turn       = 0
-        self._cur_draws      = 0
-        self._cur_actions    = 0
-        self._cur_w4         = 0
-        self._cur_targeted   = 0
-        self._cur_faults:    List[str] = []
-        self._cur_nn_scores: List[float] = []
-
-    def _ensure_game(self):
-        """Auto-bootstrap game context if game_start() was never called."""
-        if not hasattr(self, '_cur_faults'):
-            self._init_cur_game(1)
+    def _reset_game_stats(self):
+        self._cur_turns     = 0
+        self._cur_draws     = 0
+        self._cur_actions   = 0
+        self._cur_w4        = 0
+        self._cur_targeted  = 0
+        self._cur_faults    = []
+        self._cur_nn_scores = []
+        self._cur_result    = "in progress"
 
     def _load_lifetime(self):
         try:
@@ -79,7 +82,6 @@ class Telemetry:
             lt = d.get("lifetime", {})
             self._lifetime_games = lt.get("games", 0)
             self._lifetime_wins  = lt.get("wins",  0)
-            self._feed = d.get("feed", [])[-MAX_FEED:]
         except Exception:
             pass
 
@@ -88,18 +90,20 @@ class Telemetry:
     # ------------------------------------------------------------------
 
     def game_start(self, game_num: int, epsilon: float, replay_size: int):
-        self._init_cur_game(game_num)
+        self._reset_game_stats()
+        self._feed = []          # fresh feed for this game only
+        self._cur_game_num = game_num
         explore_pct = round(epsilon * 100)
         self._emit(
             f"Game {game_num} started. "
-            f"Exploration rate is {explore_pct}% with {replay_size} past experiences loaded."
+            f"Exploration rate is {explore_pct}%, "
+            f"{replay_size} past experiences in memory."
         )
 
     def turn(self, turn_num: int, hand_size: int, playable: int,
              mode: str, threat: str, dominant_color: str,
              min_opp: int, nn_score: float, nn_weight: float):
-        self._ensure_game()
-        self._cur_turn = turn_num
+        self._cur_turns = turn_num
         if nn_score > 0:
             self._cur_nn_scores.append(nn_score)
 
@@ -114,23 +118,23 @@ class Telemetry:
             "CRITICAL": f"CRITICAL — opponent has only {min_opp} card(s) left",
             "HIGH":     f"high — closest opponent has {min_opp} cards",
             "MEDIUM":   f"medium — closest opponent has {min_opp} cards",
-            "LOW":      f"low — opponents still have plenty of cards",
+            "LOW":      f"low — opponents have plenty of cards",
         }.get(threat, threat)
 
         self._emit(
-            f"Turn {turn_num}: holding {hand_size} cards with {playable} playable. "
-            f"Mode is {mode}. Threat level is {threat_phrase}. "
+            f"Turn {turn_num}: holding {hand_size} cards, {playable} playable. "
+            f"Mode is {mode}. Threat is {threat_phrase}. "
             f"Dominant colour is {dominant_color}. "
-            f"Network is {conf} (score {round(nn_score, 2)}, {nn_pct}% NN vs heuristic)."
+            f"Network is {conf} (score {round(nn_score, 2)}, {nn_pct}% NN weight)."
         )
 
     def played(self, card_type: str, card_color: str,
                wild_color: str = None, epsilon_used: bool = False):
-        self._ensure_game()
         if card_type == "NUMBER":
             desc = f"a {card_color} number card"
         elif card_type in ("WILD", "WILD_DRAW_FOUR"):
-            desc = f"{card_type.replace('_', ' ').title()} choosing {wild_color}"
+            label = "Wild Draw Four" if card_type == "WILD_DRAW_FOUR" else "Wild"
+            desc  = f"a {label}, choosing {wild_color}"
             if card_type == "WILD_DRAW_FOUR":
                 self._cur_w4 += 1
         else:
@@ -141,61 +145,60 @@ class Telemetry:
         self._emit(f"Played {desc} {how}.")
 
     def drew(self, current_color: str, stuck: bool = False):
-        self._ensure_game()
         self._cur_draws += 1
-        msg = f"No playable card — drew from the deck. Current colour is {current_color}."
+        msg = f"No playable card — drew from the deck. Active colour is {current_color}."
         if stuck:
-            msg += f" WARNING: stuck on {current_color} again."
+            msg += f" Warning: stuck on {current_color} again."
         self._emit(msg)
 
     def targeted(self, by_card: str):
-        self._ensure_game()
         self._cur_targeted += 1
         self._emit(f"Opponent played {by_card.replace('_', ' ')} against us.")
 
     def fault(self, code: str, detail: str = ""):
-        self._ensure_game()
+        # Deduplicate — don't repeat the same fault code every turn
+        if code in self._cur_faults:
+            return
         self._cur_faults.append(code)
         messages = {
-            "THREAT_UNMET": f"Fault THREAT_UNMET — played a safe card while an opponent is nearly out. {detail}",
-            "LOW_ACTIONS":  f"Fault LOW_ACTIONS — in defensive mode but running low on attack cards. {detail}",
-            "WILD_WASTED":  f"Fault WILD_WASTED — used a wild card when matching colour cards were available. {detail}",
-            "STUCK_COLOR":  f"Fault STUCK_COLOR — forced to draw on {detail} multiple turns in a row.",
-            "NN_COLD":      f"Fault NN_COLD — network confidence is low ({detail}), still learning from early games.",
-            "EPSILON_HIGH": f"Fault EPSILON_HIGH — still exploring too randomly after many games. {detail}",
+            "THREAT_UNMET": f"Warning: opponent is nearly out but we played a safe card. {detail}",
+            "LOW_ACTIONS":  f"Warning: in defensive mode but low on attack cards. {detail}",
+            "WILD_WASTED":  f"Warning: used a wild when a matching colour card was available. {detail}",
+            "STUCK_COLOR":  f"Warning: stuck drawing on {detail} repeatedly.",
+            "NN_COLD":      f"Note: network confidence is still low ({detail}) — still learning.",
+            "EPSILON_HIGH": f"Note: still exploring heavily after many games. {detail}",
         }
         self._emit(messages.get(code, f"Fault {code}: {detail}"))
 
     def game_end(self, game_num: int, won: bool, placement: int,
-                 points: int, total_turns: int, td_errors: List[float]):
-        self._ensure_game()
-        self._session_games  += 1
+                 points: int, td_errors: List[float]):
         self._lifetime_games += 1
         if won:
-            self._session_wins  += 1
             self._lifetime_wins += 1
 
-        result = "won" if won else f"finished {_ordinal(placement)}"
-        avg_nn = round(sum(self._cur_nn_scores) / len(self._cur_nn_scores), 2) \
-                 if self._cur_nn_scores else 0.0
-        avg_td = round(sum(abs(e) for e in td_errors) / len(td_errors), 3) \
-                 if td_errors else 0.0
-        fault_summary = (
-            f"Faults this game: {', '.join(sorted(set(self._cur_faults)))}."
-            if self._cur_faults else "No faults this game."
-        )
-        sess_wr     = round(self._session_wins / self._session_games * 100)
+        self._cur_result = "won" if won else f"finished {_ordinal(placement)}"
         lifetime_wr = round(self._lifetime_wins / self._lifetime_games * 100)
 
+        avg_nn = (round(sum(self._cur_nn_scores) / len(self._cur_nn_scores), 2)
+                  if self._cur_nn_scores else 0.0)
+        avg_td = (round(sum(abs(e) for e in td_errors) / len(td_errors), 3)
+                  if td_errors else 0.0)
+
+        unique_faults = sorted(set(self._cur_faults))
+        fault_str = (f"Faults: {', '.join(unique_faults)}."
+                     if unique_faults else "No faults.")
+
         self._emit(
-            f"Game {game_num} over — {result} in {total_turns} turns. "
-            f"Scored {points} points. "
-            f"Draws: {self._cur_draws}. Actions played: {self._cur_actions}. "
-            f"Wild Draw Fours: {self._cur_w4}. Targeted: {self._cur_targeted} times. "
-            f"Average network confidence: {avg_nn}. Average training error: {avg_td}. "
-            f"{fault_summary} "
-            f"Session win rate: {sess_wr}% ({self._session_wins}/{self._session_games}). "
-            f"Lifetime win rate: {lifetime_wr}% ({self._lifetime_wins}/{self._lifetime_games})."
+            f"Game over — {self._cur_result} in {self._cur_turns} turns. "
+            f"Points scored: {points}. "
+            f"Draws: {self._cur_draws}. "
+            f"Action cards: {self._cur_actions}. "
+            f"Wild Draw Fours: {self._cur_w4}. "
+            f"Times targeted: {self._cur_targeted}. "
+            f"Network confidence: {avg_nn}. Training error: {avg_td}. "
+            f"{fault_str} "
+            f"Lifetime: {self._lifetime_wins} wins from {self._lifetime_games} games "
+            f"({lifetime_wr}% win rate)."
         )
         self._flush()
 
@@ -215,25 +218,29 @@ class Telemetry:
 
     def _flush(self):
         try:
-            sess_wr = (
-                f"{round(self._session_wins / self._session_games * 100)}%"
-                if self._session_games else "0%"
-            )
             life_wr = (
                 f"{round(self._lifetime_wins / self._lifetime_games * 100)}%"
                 if self._lifetime_games else "0%"
             )
+            unique_faults = sorted(set(self._cur_faults))
             payload = {
-                "live":    self._live,
-                "feed":    self._feed,
-                "session": {
-                    "games":    self._session_games,
-                    "wins":     self._session_wins,
-                    "win_rate": sess_wr,
+                "live":  self._live,
+                "feed":  self._feed,
+                "game": {
+                    "turns":    self._cur_turns,
+                    "draws":    self._cur_draws,
+                    "actions":  self._cur_actions,
+                    "w4":       self._cur_w4,
+                    "targeted": self._cur_targeted,
+                    "faults":   unique_faults,
+                    "result":   self._cur_result,
+                    "avg_nn":   round(sum(self._cur_nn_scores) / len(self._cur_nn_scores), 2)
+                                if self._cur_nn_scores else 0.0,
                 },
                 "lifetime": {
                     "games":    self._lifetime_games,
                     "wins":     self._lifetime_wins,
+                    "losses":   self._lifetime_games - self._lifetime_wins,
                     "win_rate": life_wr,
                 },
             }

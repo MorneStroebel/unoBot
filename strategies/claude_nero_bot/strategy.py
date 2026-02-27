@@ -302,11 +302,15 @@ class ClaudeNeroBot(BaseStrategy):
 
     def on_game_end(self, won: bool, placement: int, points: int):
         super().on_game_end(won, placement, points)
+
+        # Derive win from placement — placement=1 is the ground truth for winning.
+        # Some runners pass won=False even when we finished 1st, or vice versa.
+        actual_won = (placement == 1)
+
         self._games_trained += 1
         self._epsilon = max(EPSILON_MIN, self._epsilon * EPSILON_DECAY)
 
         terminal = {1:1.0, 2:-0.25, 3:-0.6, 4:-1.0}.get(placement, -1.0)
-        if won: terminal = 1.0
 
         # Monte Carlo return propagation
         discounted = terminal; returns = []
@@ -326,8 +330,8 @@ class ClaudeNeroBot(BaseStrategy):
         if self._games_trained > 100 and self._epsilon > 0.15:
             self._telem.fault("EPSILON_HIGH", f"ε={self._epsilon:.3f} after {self._games_trained} games")
 
-        self._telem.game_end(self._games_trained, won, placement, points,
-                           len(self._episode), self._last_td_errors)
+        self._telem.game_end(self._games_trained, actual_won, placement, points,
+                           self._last_td_errors)
 
     # ------------------------------------------------------------------
     # Core decision

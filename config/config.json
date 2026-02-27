@@ -1,5 +1,5 @@
 {
-  "active_strategy": "gpt_base_bot",
+  "active_strategy": "claude_nero_bot",
   "strategies": {
     "adaptive_bot": {
       "bot_first_name": "Test",

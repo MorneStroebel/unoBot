@@ -161,28 +161,6 @@ select option{background:var(--surf2)}
 .feed-item.loss{border-color:rgba(230,57,70,.2);background:rgba(230,57,70,.04)}
 .feed-item.penalty{border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.05)}
 .feed-item.system{opacity:.7}
-
-/* ─── Telemetry panel ─── */
-.telem-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:8px;margin-bottom:14px}
-.telem-box{background:var(--surf2);border:1px solid var(--border);border-radius:8px;padding:10px 12px}
-.telem-lbl{font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:4px}
-.telem-val{font-family:var(--mono);font-size:16px;font-weight:700;color:var(--text)}
-.telem-val.red{color:var(--red)}.telem-val.green{color:var(--green)}.telem-val.yellow{color:var(--yellow)}.telem-val.blue{color:var(--blue)}
-.telem-sub{font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px}
-.fault-pill{display:inline-flex;align-items:center;gap:4px;padding:3px 8px;background:rgba(230,57,70,.12);border:1px solid rgba(230,57,70,.3);border-radius:20px;font-family:var(--mono);font-size:10px;color:var(--red);margin:2px}
-.nn-bar{height:6px;border-radius:3px;background:var(--border);overflow:hidden;margin-top:4px}
-.nn-bar-fill{height:100%;border-radius:3px;transition:width .4s;background:linear-gradient(90deg,var(--red),var(--yellow),var(--green))}
-.mode-pill{display:inline-block;padding:2px 8px;border-radius:12px;font-family:var(--mono);font-size:10px;font-weight:600;letter-spacing:1px}
-.mode-NORMAL{background:rgba(59,130,246,.12);color:var(--blue);border:1px solid rgba(59,130,246,.3)}
-.mode-OFFENSIVE{background:rgba(240,180,41,.12);color:var(--yellow);border:1px solid rgba(240,180,41,.3)}
-.mode-ENDGAME{background:rgba(230,57,70,.12);color:var(--red);border:1px solid rgba(230,57,70,.3)}
-.mode-DEFENSIVE{background:rgba(34,197,94,.12);color:var(--green);border:1px solid rgba(34,197,94,.3)}
-.telem-feed{height:180px;overflow-y:auto;font-family:var(--mono);font-size:11px;color:var(--muted2);line-height:1.6;padding:4px 0}
-.telem-feed::-webkit-scrollbar{width:3px}
-.telem-feed::-webkit-scrollbar-thumb{background:var(--border2);border-radius:2px}
-.tl{padding:2px 0;border-bottom:1px solid rgba(255,255,255,.03)}
-.tl.warn{color:var(--red)}.tl.play{color:var(--text)}.tl.draw{color:var(--muted)}
-.color-RED{color:#e63946}.color-BLUE{color:#3b82f6}.color-GREEN{color:#22c55e}.color-YELLOW{color:#f0b429}
 .feed-empty{display:flex;flex-direction:column;align-items:center;justify-content:center;height:100%;color:var(--muted);font-family:var(--mono);font-size:12px;gap:8px}
 .feed-empty .ei{font-size:32px}
 
@@ -357,7 +335,6 @@ select option{background:var(--surf2)}
   <div class="hdr-right">
     <div class="hdr-strategy" id="hdr-strategy">—</div>
     <div class="hdr-room" id="hdr-room">No room</div>
-    <a href="https://uno-839271117832.europe-west1.run.app/watch" target="_blank" class="btn btn-ghost btn-sm" style="text-decoration:none;font-size:10px;padding:5px 11px" title="Watch the featured game">👁 Featured</a>
     <div class="status-pill">
       <div class="dot stopped" id="hdr-dot"></div>
       <span id="hdr-status">OFFLINE</span>
@@ -429,66 +406,10 @@ select option{background:var(--surf2)}
         <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
           <div style="font-size:20px">🟢</div>
           <div style="flex:1;min-width:0">
-            <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">Active Room</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--muted);text-transform:uppercase;letter-spacing:1px">In Room</div>
             <div style="font-family:var(--mono);font-size:12px;color:var(--green);margin-top:2px;word-break:break-all" id="room-id-display">—</div>
           </div>
-          <a id="ctrl-watch-room-btn" href="#" target="_blank" class="btn btn-blue btn-sm" style="text-decoration:none" title="Watch your bot's game live">👁 Watch Game</a>
-          <button class="btn btn-red btn-sm" id="btn-leave" onclick="leaveRoom()">🚪 Leave</button>
-        </div>
-      </div>
-
-      <!-- ── Compact Telemetry Strip (control page) ── -->
-      <div id="ctrl-telem-strip" style="display:none">
-        <div class="card" style="padding:12px 18px">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-            <div style="display:flex;align-items:center;gap:8px">
-              <span style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted)">🧠 Live Telemetry</span>
-              <span id="ctrl-telem-mode" style="font-family:var(--mono);font-size:9px"></span>
-            </div>
-            <div style="display:flex;align-items:center;gap:8px">
-              <span id="ctrl-telem-faults" style="font-family:var(--mono);font-size:10px;color:var(--red)"></span>
-              <span id="ctrl-telem-ts" style="font-family:var(--mono);font-size:9px;color:var(--muted)"></span>
-            </div>
-          </div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap">
-            <div class="telem-box" style="flex:1;min-width:60px">
-              <div class="telem-lbl">Turn</div>
-              <div class="telem-val" id="ctrl-telem-turn">—</div>
-              <div class="telem-sub">in game</div>
-            </div>
-            <div class="telem-box" style="flex:1;min-width:60px">
-              <div class="telem-lbl">Hand</div>
-              <div class="telem-val" id="ctrl-telem-hand">—</div>
-              <div class="telem-sub">cards</div>
-            </div>
-            <div class="telem-box" style="flex:1;min-width:60px">
-              <div class="telem-lbl">Playable</div>
-              <div class="telem-val" id="ctrl-telem-playable">—</div>
-              <div class="telem-sub">options</div>
-            </div>
-            <div class="telem-box" style="flex:1;min-width:60px">
-              <div class="telem-lbl">Colour</div>
-              <div class="telem-val" id="ctrl-telem-color" style="font-size:12px">—</div>
-              <div class="telem-sub">dominant</div>
-            </div>
-            <div class="telem-box" style="flex:1;min-width:60px">
-              <div class="telem-lbl">NN</div>
-              <div class="telem-val" id="ctrl-telem-nn">—</div>
-              <div class="telem-sub">confidence</div>
-            </div>
-            <div class="telem-box" style="flex:1;min-width:60px">
-              <div class="telem-lbl">Threat</div>
-              <div class="telem-val" id="ctrl-telem-threat">—</div>
-              <div class="telem-sub">opponent</div>
-            </div>
-          </div>
-          <!-- NN confidence bar -->
-          <div style="margin-top:10px">
-            <div class="nn-bar"><div class="nn-bar-fill" id="ctrl-nn-fill" style="width:0%"></div></div>
-            <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:8px;color:var(--muted);margin-top:2px">
-              <span>Guessing</span><span id="ctrl-nn-weight"></span><span>Confident</span>
-            </div>
-          </div>
+          <button class="btn btn-red btn-sm" id="btn-leave" onclick="leaveRoom()">🚪 Leave Room</button>
         </div>
       </div>
 
@@ -549,17 +470,8 @@ select option{background:var(--surf2)}
 
     <!-- ══════════════════════════════ LIVE ACTION ════ -->
     <div class="page" id="page-live">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:22px">
-        <div class="page-title" style="margin:0">LIVE ACTION</div>
-        <div style="display:flex;gap:8px;align-items:center">
-          <a id="watch-featured-btn" href="https://uno-839271117832.europe-west1.run.app/watch" target="_blank"
-             class="btn btn-ghost btn-sm" style="text-decoration:none">👁 Featured Game</a>
-          <a id="watch-room-btn" href="https://uno-839271117832.europe-west1.run.app/watch" target="_blank"
-             class="btn btn-blue btn-sm" style="text-decoration:none;display:none">👁 Watch My Game</a>
-        </div>
-      </div>
+      <div class="page-title">LIVE ACTION</div>
 
-      <!-- ── Activity Feed ── -->
       <div class="card" style="padding:0;overflow:hidden">
         <div class="term-bar">
           <div style="display:flex;align-items:center;gap:10px">
@@ -581,7 +493,7 @@ select option{background:var(--surf2)}
         </div>
       </div>
 
-      <!-- ── Live Game Ticker ── -->
+      <!-- Live game ticker (current game, memory only) -->
       <div class="card" id="live-game-card">
         <div class="card-title">
           <div style="display:flex;align-items:center;gap:10px">
@@ -591,6 +503,7 @@ select option{background:var(--surf2)}
           </div>
           <div id="live-timer" style="font-family:var(--mono);font-size:12px;color:var(--muted)"></div>
         </div>
+        <!-- In-game real-time stats (memory, not saved yet) -->
         <div class="stat-grid" style="margin-bottom:14px">
           <div class="stat-box" style="border-color:rgba(34,197,94,.2)"><div class="stat-lbl">Hand Size</div><div class="stat-val g" id="live-hand">—</div></div>
           <div class="stat-box" style="border-color:rgba(59,130,246,.2)"><div class="stat-lbl">Cards Played</div><div class="stat-val b" id="live-cards-p">0</div></div>
@@ -604,55 +517,7 @@ select option{background:var(--surf2)}
         </div>
       </div>
 
-      <!-- ── Strategy Telemetry (optional — shown when strategy emits telemetry) ── -->
-      <div class="card" id="telem-card">
-        <div class="card-title">
-          <div style="display:flex;align-items:center;gap:10px">
-            <span>🧠 STRATEGY TELEMETRY</span>
-            <span id="telem-mode-pill"></span>
-          </div>
-          <div style="display:flex;align-items:center;gap:8px">
-            <span id="telem-ts" style="font-family:var(--mono);font-size:10px;color:var(--muted)"></span>
-            <button class="btn btn-ghost btn-xs" onclick="toggleTelemFeed()">📋 Feed</button>
-          </div>
-        </div>
-
-        <!-- Current turn snapshot -->
-        <div class="telem-grid" id="telem-turn-grid"></div>
-
-        <!-- Neural network confidence bar -->
-        <div id="telem-nn-row" style="margin-bottom:14px;display:none">
-          <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:4px">
-            <span>Network Confidence</span>
-            <span id="telem-nn-val">—</span>
-          </div>
-          <div class="nn-bar"><div class="nn-bar-fill" id="telem-nn-fill" style="width:0%"></div></div>
-          <div style="display:flex;justify-content:space-between;font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:3px">
-            <span>Guessing</span><span id="telem-nn-weight"></span><span>Confident</span>
-          </div>
-        </div>
-
-        <!-- Faults -->
-        <div id="telem-faults-row" style="margin-bottom:14px;display:none">
-          <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:6px">⚠ Active Faults</div>
-          <div id="telem-faults-pills"></div>
-        </div>
-
-        <!-- Last game summary -->
-        <div id="telem-game-row" style="display:none;padding:12px;background:var(--surf2);border-radius:8px;margin-bottom:14px">
-          <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:8px">Last Game</div>
-          <div id="telem-game-grid" class="telem-grid" style="margin-bottom:8px"></div>
-          <div id="telem-lifetime" style="font-family:var(--mono);font-size:11px;color:var(--muted2)"></div>
-        </div>
-
-        <!-- Telemetry feed (toggleable) -->
-        <div id="telem-feed-wrap" style="display:none">
-          <div style="font-family:var(--mono);font-size:9px;text-transform:uppercase;letter-spacing:1.5px;color:var(--muted);margin-bottom:6px">Telemetry Log</div>
-          <div class="telem-feed" id="telem-feed-body"></div>
-        </div>
-      </div>
-
-      <!-- ── Lifetime Stats ── -->
+      <!-- Lifetime stats for active strategy (always visible) -->
       <div class="card">
         <div class="card-title">
           LIFETIME STATS
@@ -668,6 +533,7 @@ select option{background:var(--surf2)}
           <div class="stat-box"><div class="stat-lbl">Penalties</div><div class="stat-val r" id="lt-pen">0</div></div>
           <div class="stat-box"><div class="stat-lbl">Avg Points</div><div class="stat-val" id="lt-avg">0</div></div>
         </div>
+        <!-- Placement bar chart -->
         <div id="lt-placements" style="margin-top:4px"></div>
       </div>
     </div>
@@ -1375,10 +1241,6 @@ let _logOff   = 0;        // raw log offset
 let _cfgStratId = null;   // strategy being edited in modal
 let _uploadFile = null;
 
-// Telemetry state
-let _telemFeedOpen = false;
-let _lastTelem = null;
-
 // Live feed state
 let _feedItems = [];      // parsed feed items
 const MAX_FEED = 200;
@@ -1513,17 +1375,8 @@ function renderStatus() {
   if (s.room_id) {
     roomCard.style.display = '';
     document.getElementById('room-id-display').textContent = s.room_id;
-    const watchUrl = `${UNO_BASE}/watch?roomId=${encodeURIComponent(s.room_id)}`;
-    // Control page watch button
-    const cwb = document.getElementById('ctrl-watch-room-btn');
-    if (cwb) cwb.href = watchUrl;
-    // Live page watch button
-    const wb = document.getElementById('watch-room-btn');
-    if (wb) { wb.href = watchUrl; wb.style.display = ''; }
   } else {
     roomCard.style.display = 'none';
-    const wb = document.getElementById('watch-room-btn');
-    if (wb) wb.style.display = 'none';
   }
 }
 
@@ -1623,7 +1476,7 @@ async function startPvp() {
     btn.disabled = true;
     btn.textContent = '⏳ Creating…';
     try {
-      const r = await api('/room/create', {method:'POST', body:JSON.stringify({strategy})});
+      const r = await api('/room/create', {method:'POST'});
       if (!r.ok) throw new Error(r.error);
       _pvpRoomId = r.room_id;
       document.getElementById('pvp-room-id-display').textContent = r.room_id;
@@ -1635,15 +1488,9 @@ async function startPvp() {
         _activeMode = 'pvp';
         highlightPlayCard('pvp');
         setPlayBtnsDisabled(true);
-        // Enable stop button immediately — bot is now running
-        document.getElementById('btn-stop').disabled = false;
         toast('🏠 Room ready — share the ID with friends!', 'info');
         setTimeout(pollStatus, 500);
       };
-      // Enable stop button now — bot started
-      _activeMode = 'pvp';
-      document.getElementById('btn-stop').disabled = false;
-      setPlayBtnsDisabled(true);
       toast('🏠 Room created! Share the ID with friends.', 'info');
     } catch(e) {
       toast('❌ ' + e.message, 'err');
@@ -1672,17 +1519,13 @@ async function stopBot(leaveRoom) {
   closeModal('modal-stop');
   try {
     if (leaveRoom && _status.room_id) {
-      // /room/leave also stops the bot — no need to also call /bot/stop
-      await api('/room/leave', {method:'POST'});
-      toast('🚪 Stopped and left room');
-    } else {
-      await api('/bot/stop', {method:'POST'});
-      toast('⏹ Bot stopped');
+      try { await api('/room/leave', {method:'POST'}); toast('🚪 Left room'); } catch(e) {}
     }
+    await api('/bot/stop', {method:'POST'});
     _activeMode = null;
     highlightPlayCard(null);
     setPlayBtnsDisabled(false);
-    document.getElementById('btn-stop').disabled = true;
+    toast('⏹ Bot stopped');
     setTimeout(pollStatus, 500);
   } catch(e) { toast('❌ ' + e.message, 'err'); }
 }
@@ -1707,32 +1550,9 @@ async function resumeBot() {
 // ═══════════════════════════════════════════════════
 // Room leave / rejoin
 // ═══════════════════════════════════════════════════
-const UNO_BASE = 'https://uno-839271117832.europe-west1.run.app';
-
-function watchRoom() {
-  const roomId = _status?.room_id;
-  if (roomId) {
-    window.open(`${UNO_BASE}/watch?roomId=${encodeURIComponent(roomId)}`, '_blank');
-  } else {
-    window.open(`${UNO_BASE}/watch`, '_blank');
-  }
-}
-
-function toggleTelemFeed() {
-  _telemFeedOpen = !_telemFeedOpen;
-  const wrap = document.getElementById('telem-feed-wrap');
-  if (wrap) wrap.style.display = _telemFeedOpen ? '' : 'none';
-}
-
 async function leaveRoom() {
   try {
     await api('/room/leave', {method:'POST'});
-    // Leave also stops the bot — update UI immediately
-    _activeMode = null;
-    highlightPlayCard(null);
-    setPlayBtnsDisabled(false);
-    document.getElementById('btn-stop').disabled = true;
-    document.getElementById('room-card').style.display = 'none';
     toast('🚪 Left room');
     setTimeout(pollStatus, 500);
     // Show the "what next?" modal
@@ -2536,8 +2356,19 @@ async function pollLiveStats() {
     const snap = await api('/live');
     renderLiveStats(snap);
   } catch(e) {
-    // Hard error — clear panel
-    renderLiveStats(null);
+    // Bot not running — try to show lifetime stats for active strategy
+    const strat = _status?.active_strategy;
+    if (strat && strat !== '—') {
+      try {
+        const s = await api(`/strategies/${strat}/stats`);
+        // Wrap in live_snapshot format with no active game
+        renderLiveStats({ ...s, live_game: null, strategy_id: strat });
+      } catch(_) {
+        renderLiveStats(null);
+      }
+    } else {
+      renderLiveStats(null);
+    }
   }
 }
 
@@ -2717,231 +2548,13 @@ function copyPrompt() {
   );
 }
 
-// ═══════════════════════════════════════════════════
-// Telemetry polling
-// ═══════════════════════════════════════════════════
-
-const COLOR_CLASS = {RED:'red', BLUE:'blue', GREEN:'green', YELLOW:'yellow'};
-
-async function pollTelemetry() {
-  try {
-    const t = await api('/telemetry');
-    renderTelemetry(t);
-  } catch(e) {
-    // No telemetry available
-  }
-}
-
-function renderTelemetry(t) {
-  if (!t) return;
-  _lastTelem = t;
-
-  const card = document.getElementById('telem-card');
-  const hasTurn = !!(t && t.turn);
-  const hasGame = !!(t && t.game);
-
-  if (!t || (!hasTurn && !hasGame)) {
-    // Show placeholder — bot not running or no telemetry yet
-    document.getElementById('telem-mode-pill').innerHTML = '<span style="font-family:var(--mono);font-size:10px;color:var(--muted)">waiting for bot…</span>';
-    document.getElementById('telem-ts').textContent = '';
-    document.getElementById('telem-turn-grid').innerHTML = '<div style="color:var(--muted);font-family:var(--mono);font-size:11px;padding:8px 0">⚡ Telemetry appears here when the bot is active</div>';
-    document.getElementById('telem-turn-grid').style.display = '';
-    document.getElementById('telem-nn-row').style.display = 'none';
-    document.getElementById('telem-faults-row').style.display = 'none';
-    document.getElementById('telem-game-row').style.display = 'none';
-    return;
-  }
-
-  // ── Mode pill ──
-  const modePill = document.getElementById('telem-mode-pill');
-  const mode = t.turn?.mode || 'NORMAL';
-  modePill.innerHTML = `<span class="mode-pill mode-${mode}">${mode}</span>`;
-
-  // ── Timestamp ──
-  document.getElementById('telem-ts').textContent = t.turn?.ts ? `Turn ${t.turn.turn} · ${t.turn.ts}` : '';
-
-  // ── Current turn grid ──
-  const turnGrid = document.getElementById('telem-turn-grid');
-  if (hasTurn) {
-    const tr = t.turn;
-    const colorCls = COLOR_CLASS[tr.color] || '';
-    const threatCls = tr.threat === 'high' ? 'red' : tr.threat === 'medium' ? 'yellow' : 'green';
-    turnGrid.innerHTML = `
-      <div class="telem-box">
-        <div class="telem-lbl">Hand</div>
-        <div class="telem-val ${tr.hand <= 3 ? 'green' : tr.hand >= 10 ? 'red' : ''}">${tr.hand}</div>
-        <div class="telem-sub">${tr.playable} playable</div>
-      </div>
-      <div class="telem-box">
-        <div class="telem-lbl">Turn</div>
-        <div class="telem-val">${tr.turn}</div>
-        <div class="telem-sub">in game</div>
-      </div>
-      <div class="telem-box">
-        <div class="telem-lbl">Dominant</div>
-        <div class="telem-val ${colorCls}" style="font-size:13px">${tr.color}</div>
-        <div class="telem-sub">active colour</div>
-      </div>
-      <div class="telem-box">
-        <div class="telem-lbl">Threat</div>
-        <div class="telem-val ${threatCls}" style="font-size:13px">${tr.threat || '—'}</div>
-        <div class="telem-sub">opponent threat</div>
-      </div>`;
-    turnGrid.style.display = '';
-  } else {
-    turnGrid.innerHTML = '';
-    turnGrid.style.display = 'none';
-  }
-
-  // ── Neural network bar ──
-  const nnRow = document.getElementById('telem-nn-row');
-  if (hasTurn && t.turn.nn_score !== null && t.turn.nn_score !== undefined) {
-    const pct = Math.min(100, Math.round(t.turn.nn_score * 100));
-    document.getElementById('telem-nn-fill').style.width = pct + '%';
-    document.getElementById('telem-nn-val').textContent = t.turn.nn_score.toFixed(3);
-    document.getElementById('telem-nn-weight').textContent =
-      t.turn.nn_weight !== null ? `${t.turn.nn_weight}% NN` : '';
-    nnRow.style.display = '';
-  } else {
-    nnRow.style.display = 'none';
-  }
-
-  // ── Sync compact strip on control page ──
-  const strip = document.getElementById('ctrl-telem-strip');
-  if (strip && hasTurn) {
-    const tr = t.turn;
-    strip.style.display = '';
-    document.getElementById('ctrl-telem-turn').textContent     = tr.turn;
-    document.getElementById('ctrl-telem-hand').textContent     = tr.hand;
-    document.getElementById('ctrl-telem-playable').textContent = tr.playable;
-    document.getElementById('ctrl-telem-color').textContent    = tr.color;
-    document.getElementById('ctrl-telem-nn').textContent       = tr.nn_score !== null && tr.nn_score !== undefined ? tr.nn_score.toFixed(3) : '—';
-    document.getElementById('ctrl-telem-threat').textContent   = tr.threat || '—';
-    document.getElementById('ctrl-telem-ts').textContent       = `Turn ${tr.turn} · ${tr.ts}`;
-    const mode = tr.mode || 'NORMAL';
-    document.getElementById('ctrl-telem-mode').innerHTML = `<span class="mode-pill mode-${mode}">${mode}</span>`;
-    // NN bar
-    if (tr.nn_score !== null && tr.nn_score !== undefined) {
-      const pct = Math.min(100, Math.round(tr.nn_score * 100));
-      document.getElementById('ctrl-nn-fill').style.width = pct + '%';
-      document.getElementById('ctrl-nn-weight').textContent = tr.nn_weight !== null ? `${tr.nn_weight}% NN` : '';
-    }
-    // Faults on strip
-    const stripFaults = t.faults || t.game?.faults || [];
-    document.getElementById('ctrl-telem-faults').textContent = stripFaults.length ? '⚠ ' + stripFaults.join(', ') : '';
-  } else if (strip) {
-    strip.style.display = hasTurn ? '' : 'none';
-  }
-
-  // ── Faults ──
-  const faults = t.faults || t.game?.faults || [];
-  const faultsRow = document.getElementById('telem-faults-row');
-  if (faults.length) {
-    const faultMap = {
-      STUCK_COLOR: {icon:'🔁', label:'Stuck Color', desc:'Repeatedly drawing on same color'},
-      WILD_WASTED: {icon:'♠', label:'Wild Wasted', desc:'Used wild when color card available'},
-      OVERDRAWS:   {icon:'📥', label:'Overdraws', desc:'Drawing excessively per turn'},
-      LOW_AGGRESSION:{icon:'😴', label:'Low Aggression', desc:'Not playing aggressively enough'},
-    };
-    document.getElementById('telem-faults-pills').innerHTML = faults.map(f => {
-      const info = faultMap[f] || {icon:'⚠', label:f, desc:''};
-      return `<span class="fault-pill" title="${info.desc}">${info.icon} ${info.label}</span>`;
-    }).join('');
-    faultsRow.style.display = '';
-  } else {
-    faultsRow.style.display = 'none';
-  }
-
-  // ── Last game summary ──
-  const gameRow = document.getElementById('telem-game-row');
-  if (hasGame) {
-    const g = t.game;
-    const resultOk = g.result && g.result.includes('1st');
-    document.getElementById('telem-game-grid').innerHTML = `
-      <div class="telem-box">
-        <div class="telem-lbl">Result</div>
-        <div class="telem-val ${resultOk ? 'green' : 'red'}" style="font-size:13px">${g.result || '—'}</div>
-        <div class="telem-sub">${g.ts || ''}</div>
-      </div>
-      <div class="telem-box">
-        <div class="telem-lbl">Turns</div>
-        <div class="telem-val">${g.turns ?? '—'}</div>
-        <div class="telem-sub">game length</div>
-      </div>
-      <div class="telem-box">
-        <div class="telem-lbl">Draws</div>
-        <div class="telem-val ${(g.draws||0) > 30 ? 'red' : ''}">${g.draws ?? '—'}</div>
-        <div class="telem-sub">from deck</div>
-      </div>
-      <div class="telem-box">
-        <div class="telem-lbl">Actions</div>
-        <div class="telem-val blue">${g.actions ?? '—'}</div>
-        <div class="telem-sub">action cards</div>
-      </div>
-      <div class="telem-box">
-        <div class="telem-lbl">WD4s</div>
-        <div class="telem-val yellow">${g.w4 ?? '—'}</div>
-        <div class="telem-sub">wild draw 4</div>
-      </div>
-      <div class="telem-box">
-        <div class="telem-lbl">Targeted</div>
-        <div class="telem-val ${(g.targeted||0) > 5 ? 'red' : ''}">${g.targeted ?? '—'}</div>
-        <div class="telem-sub">times hit</div>
-      </div>
-      ${g.avg_nn !== null && g.avg_nn !== undefined ? `
-      <div class="telem-box">
-        <div class="telem-lbl">Avg NN</div>
-        <div class="telem-val">${g.avg_nn.toFixed(3)}</div>
-        <div class="telem-sub">confidence</div>
-      </div>` : ''}
-      ${g.training_error !== null && g.training_error !== undefined ? `
-      <div class="telem-box">
-        <div class="telem-lbl">Train Err</div>
-        <div class="telem-val ${g.training_error > 0.3 ? 'red' : 'green'}">${g.training_error.toFixed(3)}</div>
-        <div class="telem-sub">network error</div>
-      </div>` : ''}`;
-
-    if (t.lifetime) {
-      document.getElementById('telem-lifetime').textContent =
-        `Lifetime: ${t.lifetime.wins} wins from ${t.lifetime.games} games · ${t.lifetime.win_rate} win rate`;
-    } else {
-      document.getElementById('telem-lifetime').textContent = '';
-    }
-    gameRow.style.display = '';
-  } else {
-    gameRow.style.display = 'none';
-  }
-
-  // ── Telemetry feed lines ──
-  const feedBody = document.getElementById('telem-feed-body');
-  if (t.feed && t.feed.length) {
-    feedBody.innerHTML = t.feed.map(line => {
-      const body = line.replace(/^\[\d{2}:\d{2}:\d{2}\]\s*/, '');
-      const ts   = (line.match(/^\[(\d{2}:\d{2}:\d{2})\]/) || [])[1] || '';
-      let cls = 'draw';
-      if (/Warning:/.test(body)) cls = 'warn';
-      else if (/Played a/.test(body)) cls = 'play';
-      // Colour-code card colours inline
-      const coloured = body
-        .replace(/\b(RED)\b/g, '<span class="color-RED">RED</span>')
-        .replace(/\b(BLUE)\b/g, '<span class="color-BLUE">BLUE</span>')
-        .replace(/\b(GREEN)\b/g, '<span class="color-GREEN">GREEN</span>')
-        .replace(/\b(YELLOW)\b/g, '<span class="color-YELLOW">YELLOW</span>');
-      return `<div class="tl ${cls}"><span style="color:var(--muted);margin-right:6px">${ts}</span>${coloured}</div>`;
-    }).join('');
-    if (_telemFeedOpen) feedBody.scrollTop = feedBody.scrollHeight;
-  }
-}
-
 async function init() {
   await pollStatus();
   await loadStrats();
   setInterval(pollStatus,    3000);
   setInterval(pollLog,       1500);
   setInterval(pollLiveStats, 1500);
-  setInterval(pollTelemetry, 2000);
   pollLiveStats();
-  pollTelemetry();
 }
 init();
 </script>

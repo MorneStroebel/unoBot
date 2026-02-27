@@ -170,7 +170,18 @@ def start_bot():
 
             # ── Join room ──────────────────────────────────────────────────
             if game_count == 1:
-                if mode == "target" and target_players:
+                if mode == "pvp_host":
+                    # Room already created and joined by the UI server — use hint values
+                    room_id   = hint.get("room_id")
+                    player_id = hint.get("player_id")
+                    if room_id and player_id:
+                        room_manager._set_current_room(room_id, player_id)
+                        print(f"🏠 Using pre-created PvP room: {room_id}", flush=True)
+                    else:
+                        print("❌ pvp_host mode: no room_id/player_id in hint", flush=True)
+                        break
+
+                elif mode == "target" and target_players:
                     room_id, player_id = room_manager.find_room_with_players(
                         target_players, only_players=only_players
                     )

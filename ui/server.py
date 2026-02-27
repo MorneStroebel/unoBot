@@ -221,20 +221,42 @@ def api_bot_log():
 
 @app.route("/api/room/leave", methods=["POST"])
 def api_room_leave():
-    """Leave the current room directly (without stopping the bot)."""
+    """Leave the current room.
+    If bot is running, stop it first (it will leave on atexit), then also
+    call the API directly to ensure the leave goes through immediately.
+    """
+    global _bot_process
     room = _room_state()
     room_id   = room.get("room_id")
     player_id = room.get("player_id")
     if not room_id or not player_id:
-        return jsonify({"ok": False, "error": "No active room"}), 400
+        return jsonify({"ok": False, "error": "No active room to leave"}), 400
+
+    # Stop the bot if it's running — its atexit calls leave_room, but we
+    # also call it directly below to ensure it happens before returning.
+    with _bot_lock:
+        if _bot_status() == "running":
+            _bot_process.terminate()
+            try:
+                _bot_process.wait(timeout=4)
+            except subprocess.TimeoutExpired:
+                _bot_process.kill()
+                _bot_process.wait(timeout=2)
+            _set_paused(False)
+            _bot_process = None
+            _append_log("⏹ Bot stopped for room leave")
+
     try:
-        from api.actions import leave_room
-        result = leave_room(room_id, player_id)
+        from api.actions import leave_room as _leave_room
+        result = _leave_room(room_id, player_id)
         _clear_room_state()
         _append_log(f"🚪 Left room {room_id}")
         return jsonify({"ok": True, "result": result})
     except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+        # Even if API leave fails, clear local state so UI is consistent
+        _clear_room_state()
+        _append_log(f"⚠ Leave API error (room cleared locally): {e}")
+        return jsonify({"ok": True, "warning": str(e)})
 
 
 @app.route("/api/room/join", methods=["POST"])
@@ -262,22 +284,74 @@ def api_room_join():
 
 @app.route("/api/room/create", methods=["POST"])
 def api_room_create():
-    """Create a new PvP room and join it as the host."""
-    try:
-        from api.client import post as api_post
-        from api.actions import join_room
-        from config.settings import IS_SANDBOX_MODE
-        resp = api_post("/rooms", {"isSandbox": IS_SANDBOX_MODE})
-        room_id = resp.json().get("roomId")
-        if not room_id:
-            return jsonify({"ok": False, "error": "Server did not return a room ID"}), 500
-        player_id = join_room(room_id, only_players=True)
-        if not player_id:
-            return jsonify({"ok": False, "error": "Could not join the created room"}), 500
-        _append_log(f"🏠 Created PvP room {room_id}")
-        return jsonify({"ok": True, "room_id": room_id, "player_id": player_id})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
+    """Create a new PvP room, join it, write state.json, and start the bot waiting in it."""
+    global _bot_process, _bot_start_time, _bot_log
+    with _bot_lock:
+        if _bot_status() == "running":
+            return jsonify({"ok": False, "error": "Bot is already running — stop it first"}), 400
+        try:
+            from api.client import post as api_post
+            from api.actions import join_room
+            from config.settings import IS_SANDBOX_MODE
+            import json as _json
+
+            data     = request.get_json(silent=True) or {}
+            strategy = data.get("strategy") or None
+
+            resp = api_post("/rooms", {"isSandbox": IS_SANDBOX_MODE})
+            room_id = resp.json().get("roomId")
+            if not room_id:
+                return jsonify({"ok": False, "error": "Server did not return a room ID"}), 500
+            player_id = join_room(room_id, only_players=True)
+            if not player_id:
+                return jsonify({"ok": False, "error": "Could not join the created room"}), 500
+
+            # Write state.json so _room_state() and api_room_leave work
+            state_path = os.path.join(PROJECT_ROOT, "state.json")
+            with open(state_path, "w") as f:
+                _json.dump({"roomId": room_id, "playerId": player_id}, f)
+
+            # Save strategy to config if specified
+            if strategy:
+                cfg = _load_cfg()
+                cfg["active_strategy"] = strategy
+                _save_cfg(cfg)
+
+            # Write launch hint so bot uses the already-joined room
+            hint = {
+                "mode": "pvp_host",
+                "strategy": strategy or "",
+                "room_id": room_id,
+                "player_id": player_id,
+                "target_players": [],
+                "auto_rejoin": False,
+            }
+            with open(_HINT_FILE, "w") as f:
+                _json.dump(hint, f)
+
+            _set_paused(False)
+            _bot_log.clear()
+
+            env = os.environ.copy()
+            env["PYTHONUNBUFFERED"] = "1"
+            env["UNO_UI_MODE"]      = "1"
+            env["UNO_LAUNCH_MODE"]  = "pvp_host"
+
+            _bot_process = subprocess.Popen(
+                [sys.executable, "-u", "-m", "app.main"],
+                cwd=PROJECT_ROOT,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                text=True, bufsize=1, env=env,
+            )
+            _bot_start_time = time.time()
+            _append_log(f"🏠 Created PvP room {room_id}")
+            _append_log(f"▶ Bot started — PID {_bot_process.pid}  mode=pvp_host  strategy={strategy or 'from config'}")
+            threading.Thread(target=_stream_proc, args=(_bot_process,), daemon=True).start()
+
+            return jsonify({"ok": True, "room_id": room_id, "player_id": player_id})
+        except Exception as e:
+            return jsonify({"ok": False, "error": str(e)}), 500
 
 
 
@@ -357,13 +431,123 @@ def api_strategy_live(n):
     return jsonify(StrategyStats(n).live_snapshot())
 
 
+@app.route("/api/telemetry")
+def api_telemetry():
+    """Return parsed telemetry from recent bot log lines."""
+    import re
+
+    telem = {
+        "turn": None,
+        "game": None,
+        "feed": [],
+        "faults": [],
+        "lifetime": None,
+    }
+
+    for raw_line in reversed(_bot_log[-300:]):
+        body = re.sub(r'^\[\d{2}:\d{2}:\d{2}\]\s*', '', raw_line)
+        ts_m = re.match(r'^\[(\d{2}:\d{2}:\d{2})\]', raw_line)
+        ts = ts_m.group(1) if ts_m else ''
+
+        if telem["turn"] is None and re.search(r'Turn \d+: holding \d+ cards', body):
+            m = re.search(
+                r'Turn (\d+): holding (\d+) cards, (\d+) playable.'
+                r'(?:.*?Mode is (\w+))?'
+                r'(?:.*?Threat is (\w+))?'
+                r'(?:.*?Dominant colou?r is (\w+))?'
+                r'(?:.*?Network (?:is guessing|confidence) .score ([\d.]+))?'
+                r'(?:.*?(\d+)% NN weight.)?', body)
+            if m:
+                telem["turn"] = {
+                    "ts": ts,
+                    "turn": int(m.group(1)),
+                    "hand": int(m.group(2)),
+                    "playable": int(m.group(3)),
+                    "mode": m.group(4) or "NORMAL",
+                    "threat": m.group(5) or "low",
+                    "color": m.group(6) or "?",
+                    "nn_score": float(m.group(7)) if m.group(7) else None,
+                    "nn_weight": int(m.group(8)) if m.group(8) else None,
+                    "raw": body,
+                }
+
+        if telem["game"] is None and 'Game over' in body and 'turns' in body:
+            gm = re.search(
+                r'finished (\w+) in (\d+) turns'
+                r'(?:.*?Points scored: (\d+(?:\.\d+)?))?'  
+                r'(?:.*?Draws: (\d+))?'
+                r'(?:.*?Action cards: (\d+))?'
+                r'(?:.*?Wild Draw Fours: (\d+))?'
+                r'(?:.*?Times targeted: (\d+))?'
+                r'(?:.*?Network confidence: (\d+(?:\.\d+)?))?'  
+                r'(?:.*?Training error: (\d+(?:\.\d+)?))?'  
+                r'(?:.*?Faults: ([A-Z_,\s]+?)(?:\. |\.|$))?'
+                r'(?:.*?Lifetime: (\d+) wins from (\d+) games .([\d.]+)% win rate.)?', body)
+            if gm:
+                faults_raw = gm.group(10) or ''
+                # Faults may be comma-separated or space-separated, strip trailing dot
+                faults = [f.strip().rstrip('.') for f in faults_raw.replace(',', ' ').split() if f.strip()]
+                telem["game"] = {
+                    "ts": ts,
+                    "result": f"finished {gm.group(1)}",
+                    "turns": int(gm.group(2)),
+                    "points": float(gm.group(3)) if gm.group(3) else 0,
+                    "draws": int(gm.group(4)) if gm.group(4) else 0,
+                    "actions": int(gm.group(5)) if gm.group(5) else 0,
+                    "w4": int(gm.group(6)) if gm.group(6) else 0,
+                    "targeted": int(gm.group(7)) if gm.group(7) else 0,
+                    "avg_nn": float(gm.group(8)) if gm.group(8) else None,
+                    "training_error": float(gm.group(9)) if gm.group(9) else None,
+                    "faults": faults,
+                    "raw": body,
+                }
+                if faults:
+                    telem["faults"] = faults
+                if gm.group(11) is not None:
+                    telem["lifetime"] = {
+                        "wins": int(gm.group(11)),
+                        "games": int(gm.group(12)),
+                        "win_rate": gm.group(13) + "%",
+                    }
+
+        if telem["turn"] and telem["game"]:
+            break
+
+    telem_rx = re.compile(r'Turn \d+:|No playable card|Played a|Warning:|Game over|Lifetime:')
+    telem["feed"] = [l for l in _bot_log[-200:] if telem_rx.search(l)][-50:]
+    return jsonify(telem)
+
+
 @app.route("/api/live")
 def api_live_any():
-    """Return live snapshot for the currently active strategy (from config)."""
+    """Return live snapshot for the currently active strategy.
+    Tries config first, then falls back to state.json (running bot's strategy).
+    Always returns 200 so the frontend can render lifetime stats even offline.
+    """
     cfg = _load_cfg()
     active = cfg.get("active_strategy")
+
+    # Fallback: check if bot is running and wrote a live_state.json anywhere
     if not active:
-        return jsonify({"error": "No active strategy"}), 404
+        # Try to find any strategy with an active live_state.json
+        try:
+            for entry in os.listdir(STRATEGIES_DIR):
+                live_path = os.path.join(STRATEGIES_DIR, entry, "live_state.json")
+                if os.path.exists(live_path):
+                    active = entry
+                    break
+        except Exception:
+            pass
+
+    if not active:
+        return jsonify({"error": "No active strategy", "live_game": None,
+                        "games_played": 0, "wins": 0, "losses": 0,
+                        "win_rate": 0.0, "avg_points_per_game": 0.0,
+                        "total_cards_played": 0, "total_cards_drawn": 0,
+                        "total_uno_calls": 0, "total_penalties": 0,
+                        "best_game_points": 0, "placements": {"1":0,"2":0,"3":0,"4+":0},
+                        "wild_color_choices": {"RED":0,"BLUE":0,"GREEN":0,"YELLOW":0}})
+
     snap = StrategyStats(active).live_snapshot()
     snap["strategy_id"] = active
     return jsonify(snap)

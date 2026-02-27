@@ -327,6 +327,17 @@ class StrategyStats:
     def best_game_points(self): return self._data["best_game_points"]
     @property
     def placements(self): return dict(self._data["placements"])
+    @property
+    def total_cards_played(self): return self._data["total_cards_played"]
+    @property
+    def total_cards_drawn(self): return self._data["total_cards_drawn"]
+    @property
+    def draw_rate(self):
+        """Ratio of cards drawn to total actions (drawn + played). Range 0.0–1.0."""
+        played = self._data["total_cards_played"]
+        drawn  = self._data["total_cards_drawn"]
+        total  = played + drawn
+        return round(drawn / total, 4) if total > 0 else 0.0
 
     def as_dict(self) -> Dict:
         return dict(self._data)

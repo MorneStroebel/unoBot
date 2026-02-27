@@ -113,11 +113,18 @@ class BaseStrategy:
             strategy_name = self._get_strategy_folder_name()
             strategies_dir = os.path.dirname(os.path.abspath(__file__))
             live_path = os.path.join(strategies_dir, strategy_name, "live_state.json")
-            # live_state.json exists while stats_tracker is managing this game session
+            # live_state.json exists while stats_tracker is managing this game session.
+            # It is written by start_game() and deleted by end_game().
+            # If it exists here, end_game() will handle the persist — skip the legacy path.
             if os.path.exists(live_path):
                 return  # stats_tracker.end_game() will handle it — don't double-count
+            # Also skip if there's any active live_state.json for this strategy
+            # (catches the case where live_state was written but not yet deleted)
             from strategies.stats import StrategyStats
             tracker = StrategyStats(strategy_name)
+            live = tracker._read_live_from_disk()
+            if live.get("active"):
+                return  # stats_tracker is running — don't double-count
             tracker.record_game(
                 won=won, placement=placement, points=points,
                 cards_played=self._session_cards_played,

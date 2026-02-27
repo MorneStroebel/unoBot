@@ -21,7 +21,7 @@ class SocketListener:
         self.sio            = socketio.Client(reconnection=True, reconnection_attempts=5)
         self.game_started   = False   # True once stats tracking begun for this game
         self.game_ended     = False
-        self._is_reconnect  = False   # True after the first connect fires
+        self._connect_count = 0       # incremented on every connect event
         self._players       = {}      # id → name
         self._setup_handlers()
 
@@ -39,7 +39,7 @@ class SocketListener:
         """Start stats tracking exactly once per game — ignore reconnect signals."""
         if self.game_started:
             return
-        if self._is_reconnect:
+        if self._connect_count > 1:
             # We reconnected mid-game; don't start a new stats session
             print("🔄 Reconnected mid-game — stats session continuing", flush=True)
             self.game_started = True   # suppress future calls but don't reset stats
@@ -62,14 +62,16 @@ class SocketListener:
 
         @self.sio.on("connect")
         def on_connect():
-            print(f"🔌 Connected to game server", flush=True)
+            self._connect_count += 1
+            if self._connect_count > 1:
+                print(f"🔄 Reconnected to game server (attempt {self._connect_count})", flush=True)
+            else:
+                print(f"🔌 Connected to game server", flush=True)
             self.sio.emit("joinRoom", {
                 "roomId":   self.room_id,
                 "playerId": self.player_id,
             })
             print(f"🚪 Joined room {self.room_id}", flush=True)
-            # Mark subsequent connects as reconnects so we don't double-count games
-            self._is_reconnect = True
 
         @self.sio.on("disconnect")
         def on_disconnect():
@@ -230,8 +232,8 @@ class SocketListener:
     # ── Public interface ──────────────────────────────────────────────────────
 
     def connect(self):
-        # Reset reconnect flag so the very first connect is treated as fresh
-        self._is_reconnect = False
+        # Reset counter so the very first connect event is treated as fresh (not a reconnect)
+        self._connect_count = 0
         print(f"🔌 Connecting to game server…", flush=True)
         self.sio.connect(SOCKET_URL)
 

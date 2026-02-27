@@ -1,10 +1,6 @@
 {
   "active_strategy": "claude_nero_bot",
   "strategies": {
-    "adaptive_bot": {
-      "bot_first_name": "Test",
-      "bot_last_name": "Bot"
-    },
     "claude_base_bot": {
       "bot_first_name": "claude",
       "bot_last_name": "base"
